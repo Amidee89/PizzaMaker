@@ -13,6 +13,7 @@ class PizzaMaker {
         this.crustProportion = 0.2;
         this.numSlices = 8;
         this.ovalness = 0;
+        this.ovalnessDirection = 0;
         
         this.init();
         this.setupControls();
@@ -124,9 +125,32 @@ class PizzaMaker {
         this.scene.add(this.pizzaMesh);
         this.scene.add(this.crustMesh);
         
-        this.updateOvalness();
+        this.applyPizzaTransform();
     }
     
+    transformPoint(x, y) {
+        const angle = this.ovalnessDirection * Math.PI / 180;
+        const cosAngle = Math.cos(angle);
+        const sinAngle = Math.sin(angle);
+
+        // Vector projection to get components along the scaling direction and perpendicular to it
+        const dotProduct = x * cosAngle + y * sinAngle;
+        const perpDotProduct = -x * sinAngle + y * cosAngle;
+
+        // Scale the component along the direction vector
+        const scaledComponentX = (1 + this.ovalness) * dotProduct * cosAngle;
+        const scaledComponentY = (1 + this.ovalness) * dotProduct * sinAngle;
+
+        // The perpendicular component remains unchanged
+        const perpComponentX = perpDotProduct * -sinAngle;
+        const perpComponentY = perpDotProduct * cosAngle;
+
+        return {
+            x: scaledComponentX + perpComponentX,
+            y: scaledComponentY + perpComponentY,
+        };
+    }
+
     createPizzaGeometry() {
     const radius = 2 * (1 - this.crustProportion);
     const height = this.pizzaHeight;
@@ -153,9 +177,11 @@ class PizzaMaker {
     for (let i = 0; i <= numSegments; i++) {
         const angle = i * angleStep;
         if (angle > totalAngle) break;
-        const x = radius * Math.cos(angle);
-        const y = radius * Math.sin(angle);
-        points.push({ x, y });
+        let x = radius * Math.cos(angle);
+        let y = radius * Math.sin(angle);
+        
+        const transformedPoint = this.transformPoint(x, y);
+        points.push(transformedPoint);
     }
 
     if (this.numSlices < 8) {
@@ -222,8 +248,8 @@ class PizzaMaker {
             const innerX = innerRadius * Math.cos(angle);
             const innerY = innerRadius * Math.sin(angle);
             
-            outerPoints.push({ x: outerX, y: outerY });
-            innerPoints.push({ x: innerX, y: innerY });
+            outerPoints.push(this.transformPoint(outerX, outerY));
+            innerPoints.push(this.transformPoint(innerX, innerY));
         }
         
         // Create outer shape
@@ -273,11 +299,14 @@ class PizzaMaker {
         return geometry;
     }
     
-    updateOvalness() {
+    applyPizzaTransform() {
+        const rotation = this.ovalnessDirection * Math.PI / 180;
         if (this.pizzaMesh) {
+            this.pizzaMesh.rotation.y = rotation;
             this.pizzaMesh.scale.x = 1 + this.ovalness;
         }
         if (this.crustMesh) {
+            this.crustMesh.rotation.y = rotation;
             this.crustMesh.scale.x = 1 + this.ovalness;
         }
     }
@@ -340,7 +369,17 @@ class PizzaMaker {
         ovalnessSlider.addEventListener('input', (e) => {
             this.ovalness = parseFloat(e.target.value);
             ovalnessValue.textContent = this.ovalness.toFixed(2);
-            this.updateOvalness();
+            this.createPizza();
+        });
+
+        // Ovalness Direction slider
+        const ovalnessDirectionSlider = document.getElementById('ovalness-direction-slider');
+        const ovalnessDirectionValue = document.getElementById('ovalness-direction-value');
+
+        ovalnessDirectionSlider.addEventListener('input', (e) => {
+            this.ovalnessDirection = parseInt(e.target.value);
+            ovalnessDirectionValue.textContent = `${this.ovalnessDirection}°`;
+            this.createPizza();
         });
     }
     
