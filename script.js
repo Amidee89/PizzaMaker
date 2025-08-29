@@ -8,10 +8,11 @@ class PizzaMaker {
         this.pizzaMesh = null;
         this.crustMesh = null;
         this.sides = 8;
-        this.extrusionHeight = 0.5;
+        this.pizzaHeight = 0.5;
         this.crustThickness = 0.3;
         this.crustProportion = 0.2;
         this.numSlices = 8;
+        this.ovalness = 0;
         
         this.init();
         this.setupControls();
@@ -122,11 +123,13 @@ class PizzaMaker {
         // Add both to scene
         this.scene.add(this.pizzaMesh);
         this.scene.add(this.crustMesh);
+        
+        this.updateOvalness();
     }
     
     createPizzaGeometry() {
     const radius = 2 * (1 - this.crustProportion);
-    const height = this.extrusionHeight;
+    const height = this.pizzaHeight;
 
     let actualNumSlices = this.numSlices;
     if (this.sides === 3 && this.numSlices < 3) {
@@ -185,7 +188,7 @@ class PizzaMaker {
     createCrustGeometry() {
         const outerRadius = 2; // Full radius
         const innerRadius = 2 * (1 - this.crustProportion); // Inner radius (where pizza ends)
-        const height = this.extrusionHeight + this.crustThickness; // Crust is thicker
+        const height = this.pizzaHeight + this.crustThickness; // Crust is thicker
         
         let actualNumSlices = this.numSlices;
         if (this.sides === 3 && this.numSlices < 3) {
@@ -270,7 +273,14 @@ class PizzaMaker {
         return geometry;
     }
     
-
+    updateOvalness() {
+        if (this.pizzaMesh) {
+            this.pizzaMesh.scale.x = 1 + this.ovalness;
+        }
+        if (this.crustMesh) {
+            this.crustMesh.scale.x = 1 + this.ovalness;
+        }
+    }
     
     setupControls() {
         // Sides slider
@@ -283,13 +293,13 @@ class PizzaMaker {
             this.createPizza();
         });
         
-        // Extrusion slider
-        const extrusionSlider = document.getElementById('extrusion-slider');
-        const extrusionValue = document.getElementById('extrusion-value');
+        // Pizza height slider
+        const pizzaHeightSlider = document.getElementById('pizza-height-slider');
+        const pizzaHeightValue = document.getElementById('pizza-height-value');
         
-        extrusionSlider.addEventListener('input', (e) => {
-            this.extrusionHeight = parseFloat(e.target.value);
-            extrusionValue.textContent = this.extrusionHeight;
+        pizzaHeightSlider.addEventListener('input', (e) => {
+            this.pizzaHeight = parseFloat(e.target.value);
+            pizzaHeightValue.textContent = this.pizzaHeight;
             this.createPizza();
         });
         
@@ -321,6 +331,16 @@ class PizzaMaker {
             this.numSlices = parseInt(e.target.value);
             slicesValue.textContent = this.numSlices;
             this.createPizza();
+        });
+
+        // Ovalness slider
+        const ovalnessSlider = document.getElementById('ovalness-slider');
+        const ovalnessValue = document.getElementById('ovalness-value');
+
+        ovalnessSlider.addEventListener('input', (e) => {
+            this.ovalness = parseFloat(e.target.value);
+            ovalnessValue.textContent = this.ovalness.toFixed(2);
+            this.updateOvalness();
         });
     }
     
