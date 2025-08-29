@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pizza Maker 3D</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🍕 Pizza Maker 3D</h1>
+            <p>Customize your perfect pizza shape!</p>
+        </header>
+        
+        <main>
+            <div class="controls-panel">
+                <div class="control-group">
+                    <label for="sides-slider">Number of Sides:</label>
+                    <div class="slider-container">
+                        <input type="range" id="sides-slider" min="3" max="100" value="8" class="slider">
+                        <span class="slider-value" id="sides-value">8</span>
+                    </div>
+                </div>
+                
+                <div class="control-group">
+                    <label for="extrusion-slider">Extrusion Height:</label>
+                    <div class="slider-container">
+                        <input type="range" id="extrusion-slider" min="0.01" max="2" value="0.5" step="0.01" class="slider">
+                        <span class="slider-value" id="extrusion-value">0.5</span>
+                    </div>
+                </div>
+                
+                <div class="control-group">
+                    <label for="crust-thickness-slider">Crust Thickness:</label>
+                    <div class="slider-container">
+                        <input type="range" id="crust-thickness-slider" min="0.01" max="1" value="0.3" step="0.05" class="slider">
+                        <span class="slider-value" id="crust-thickness-value">0.3</span>
+                    </div>
+                </div>
+                
+                <div class="control-group">
+                    <label for="crust-proportion-slider">Crust Proportion:</label>
+                    <div class="slider-container">
+                        <input type="range" id="crust-proportion-slider" min="0" max="0.99" value="0.2" step="0.05" class="slider">
+                        <span class="slider-value" id="crust-proportion-value">0.2</span>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="viewer-container">
+                <div id="pizza-viewer"></div>
+                <div class="instructions">
+                    <p>🖱️ Drag to rotate • 🔍 Scroll to zoom</p>
+                </div>
+                <div class="slice-controls">
+                    <div class="control-group">
+                        <label for="slices-slider">Number of Slices:</label>
+                        <div class="slider-container">
+                            <input type="range" id="slices-slider" min="1" max="8" value="8" step="1" class="slider">
+                            <span class="slider-value" id="slices-value">8</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+    
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+    <script src="script.js"></script>
+</body>
+</html>
