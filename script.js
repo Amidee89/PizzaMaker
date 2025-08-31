@@ -75,7 +75,7 @@ class PizzaMaker {
         this.controls.dampingFactor = 0.05;
         this.controls.screenSpacePanning = false;
         this.controls.minDistance = 2;
-        this.controls.maxDistance = 10;
+        this.controls.maxDistance = 20;
         this.controls.maxPolarAngle = Math.PI / 2;
         
         this.setupLighting();
@@ -352,6 +352,7 @@ class PizzaMaker {
     applyDeformations(geometry, isCrust = false) {
         // For scalability: manipulate vertices here for new features
         const positions = geometry.attributes.position;
+        if (!positions) return;
         for (let i = 0; i < positions.count; i++) {
             const x = positions.getX(i);
             const y = positions.getY(i);
