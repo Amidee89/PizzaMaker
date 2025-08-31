@@ -115,6 +115,7 @@ class PizzaMaker {
         // Generate base dough
         const doughGeometry = this.generateDoughGeometry();
         this.applyDeformations(doughGeometry);
+        
         const doughMaterial = this.generateDoughMaterial();
         this.doughMesh = new THREE.Mesh(doughGeometry, doughMaterial);
         this.doughMesh.castShadow = true;
@@ -124,6 +125,7 @@ class PizzaMaker {
         // Generate crust
         const crustGeometry = this.generateCrustGeometry();
         this.applyDeformations(crustGeometry, true); // true for crust-specific
+        
         const crustMaterial = this.generateCrustMaterial();
         this.crustMesh = new THREE.Mesh(crustGeometry, crustMaterial);
         this.crustMesh.castShadow = true;
@@ -200,6 +202,7 @@ class PizzaMaker {
 
         const geometry = new THREE.ExtrudeGeometry(shape, extrudeSettings);
         geometry.rotateX(-Math.PI / 2);
+        geometry.translate(0, -height / 2, 0);
 
         return geometry;
     }
@@ -299,6 +302,7 @@ class PizzaMaker {
         
         // Center the geometry and rotate to lay flat (z-axis up)
         geometry.rotateX(-Math.PI / 2);
+        geometry.translate(0, (-height / 2) + (this.crustThickness / 2), 0);
         
         return geometry;
     }
