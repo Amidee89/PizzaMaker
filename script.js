@@ -24,6 +24,7 @@ class PizzaMaker {
         this.thicknessVariance = 0; // 0-1 scale
         this.thicknessVarianceDensity = 0.5;
         this.bowlDomeAmount = 0; // -1 (bowl) to 1 (dome)
+        this.stellation = 0;
         this.radiusRandomness = 0; // Waviness amplitude
         this.airPockets = 0; // Intensity
         this.doughnutHoleSize = 0; // Inner radius
@@ -170,14 +171,32 @@ class PizzaMaker {
 
         // Generate points for the polygon
         const points = [];
-        for (let i = 0; i <= numSegments; i++) {
-            const angle = i * angleStep;
-            if (angle > totalAngle) break;
-            let x = radius * Math.cos(angle);
-            let y = radius * Math.sin(angle);
-            
-            const transformedPoint = this.transformPoint(x, y);
-            points.push(transformedPoint);
+        if (this.stellation > 0) {
+            const numPoints = 2 * this.sides;
+            const pointinessAngleStep = (2 * Math.PI) / numPoints;
+            const numPointinessSegments = Math.ceil(numPoints * (actualNumSlices / 8));
+            const smallRadius = radius * (1 - this.stellation);
+
+            for (let i = 0; i <= numPointinessSegments; i++) {
+                const angle = i * pointinessAngleStep;
+                if (angle > totalAngle) break;
+                const r = (i % 2 === 0) ? radius : smallRadius;
+                let x = r * Math.cos(angle);
+                let y = r * Math.sin(angle);
+                
+                const transformedPoint = this.transformPoint(x, y);
+                points.push(transformedPoint);
+            }
+        } else {
+            for (let i = 0; i <= numSegments; i++) {
+                const angle = i * angleStep;
+                if (angle > totalAngle) break;
+                let x = radius * Math.cos(angle);
+                let y = radius * Math.sin(angle);
+                
+                const transformedPoint = this.transformPoint(x, y);
+                points.push(transformedPoint);
+            }
         }
 
         if (this.numSlices < 8) {
@@ -247,17 +266,41 @@ class PizzaMaker {
         const outerPoints = [];
         const innerPoints = [];
         
-        // Generate all points first
-        for (let i = 0; i <= numSegments; i++) {
-            const angle = i * angleStep;
-            if (angle > totalAngle) break;
-            const outerX = outerRadius * Math.cos(angle);
-            const outerY = outerRadius * Math.sin(angle);
-            const innerX = innerRadius * Math.cos(angle);
-            const innerY = innerRadius * Math.sin(angle);
-            
-            outerPoints.push(this.transformPoint(outerX, outerY));
-            innerPoints.push(this.transformPoint(innerX, innerY));
+        if (this.stellation > 0) {
+            const numPoints = 2 * this.sides;
+            const pointinessAngleStep = (2 * Math.PI) / numPoints;
+            const numPointinessSegments = Math.ceil(numPoints * (actualNumSlices / 8));
+            const smallOuterRadius = outerRadius * (1 - this.stellation);
+            const smallInnerRadius = innerRadius * (1 - this.stellation);
+
+            for (let i = 0; i <= numPointinessSegments; i++) {
+                const angle = i * pointinessAngleStep;
+                if (angle > totalAngle) break;
+                
+                const rOuter = (i % 2 === 0) ? outerRadius : smallOuterRadius;
+                const rInner = (i % 2 === 0) ? innerRadius : smallInnerRadius;
+
+                const outerX = rOuter * Math.cos(angle);
+                const outerY = rOuter * Math.sin(angle);
+                const innerX = rInner * Math.cos(angle);
+                const innerY = rInner * Math.sin(angle);
+                
+                outerPoints.push(this.transformPoint(outerX, outerY));
+                innerPoints.push(this.transformPoint(innerX, innerY));
+            }
+        } else {
+            // Generate all points first
+            for (let i = 0; i <= numSegments; i++) {
+                const angle = i * angleStep;
+                if (angle > totalAngle) break;
+                const outerX = outerRadius * Math.cos(angle);
+                const outerY = outerRadius * Math.sin(angle);
+                const innerX = innerRadius * Math.cos(angle);
+                const innerY = innerRadius * Math.sin(angle);
+                
+                outerPoints.push(this.transformPoint(outerX, outerY));
+                innerPoints.push(this.transformPoint(innerX, innerY));
+            }
         }
         
         // Create outer shape
@@ -467,6 +510,12 @@ class PizzaMaker {
             this.updatePizza();
         });
         
+        document.getElementById('stellation-slider').addEventListener('input', (e) => {
+            this.stellation = parseFloat(e.target.value);
+            document.getElementById('stellation-value').textContent = this.stellation.toFixed(1);
+            this.updatePizza();
+        });
+
         document.getElementById('thickness-variance-density-slider').addEventListener('input', (e) => {
             this.thicknessVarianceDensity = parseFloat(e.target.value);
             document.getElementById('thickness-variance-density-value').textContent = this.thicknessVarianceDensity.toFixed(1);
