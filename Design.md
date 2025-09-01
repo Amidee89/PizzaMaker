@@ -2,8 +2,8 @@ Shape:
     Number of sides
     Stellation
     pizza height
-ovalness
-ovalness direction
+    ovalness
+    ovalness direction
 bowl/dome
 thickness variance intensity
 thickness variance density
