@@ -22,6 +22,7 @@ class PizzaMaker {
         
         // Skeleton parameters for new features
         this.thicknessVariance = 0; // 0-1 scale
+        this.thicknessVarianceDensity = 0.5;
         this.bowlDomeAmount = 0; // -1 (bowl) to 1 (dome)
         this.radiusRandomness = 0; // Waviness amplitude
         this.airPockets = 0; // Intensity
@@ -466,6 +467,12 @@ class PizzaMaker {
             this.updatePizza();
         });
         
+        document.getElementById('thickness-variance-density-slider').addEventListener('input', (e) => {
+            this.thicknessVarianceDensity = parseFloat(e.target.value);
+            document.getElementById('thickness-variance-density-value').textContent = this.thicknessVarianceDensity.toFixed(1);
+            this.updatePizza();
+        });
+
         // TODO: Add more listeners for other params
     }
     
