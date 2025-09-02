@@ -235,6 +235,7 @@ class PizzaMaker {
      * This replaces ExtrudeGeometry for better control over vertex distribution
      */
     generateCustomDoughGeometry() {
+
         const radius = 2 * (1 - this.crustProportion);
         const height = this.pizzaHeight;
         
@@ -286,9 +287,11 @@ class PizzaMaker {
                     let z = ringRadius * Math.sin(angle);
                     
                     // Apply transformations (ovalness, stellation, etc.)
-                    const transformed = this.transformPoint(x, z);
+                    // transformPoint was designed for ExtrudeGeometry coordinate system
+                    // Custom geometry needs direction flipped to match crust behavior
+                    const transformed = this.transformPoint(x, -z); // Flip Z to match crust
                     x = transformed.x;
-                    z = transformed.y;
+                    z = -transformed.y; // Flip back
                     
                     // Handle stellation - apply to ALL rings, not just the outer one
                     if (this.stellation > 0) {
@@ -332,6 +335,8 @@ class PizzaMaker {
         
         // Set the indices to create actual faces
         geometry.setIndex(indices);
+        
+
         
         return geometry;
     }
@@ -431,6 +436,7 @@ class PizzaMaker {
     }
     
     generateBaseCrustGeometry() {
+
         const outerRadius = 2; // Full radius
         const innerRadius = 2 * (1 - this.crustProportion); // Inner radius (where pizza ends)
         const height = this.pizzaHeight + this.crustThickness; // Crust is thicker
@@ -571,10 +577,14 @@ class PizzaMaker {
         const perpComponentX = perpDotProduct * -sinAngle;
         const perpComponentY = perpDotProduct * cosAngle;
 
-        return {
+        const result = {
             x: scaledComponentX + perpComponentX,
             y: scaledComponentY + perpComponentY,
         };
+
+
+
+        return result;
     }
     
     /**
