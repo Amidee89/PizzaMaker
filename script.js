@@ -23,9 +23,9 @@ class PizzaMaker {
         // Skeleton parameters for new features
         this.thicknessVariance = 0; // 0-1 scale
         this.thicknessVarianceDensity = 0.5;
-        this.bowlDomeAmount = 0.1; // -1 (bowl) to 1 (dome) - TEST VALUE
+        this.bowlDomeAmount = 0; // -1 (bowl) to 1 (dome)
         this.pointiness = 0; // 0-1 scale for bowl/dome pointiness
-        this.stellation = 0.5; // TEST VALUE
+        this.stellation = 0;
         this.radiusRandomness = 0; // Waviness amplitude
         this.airPockets = 0; // Intensity
         this.doughnutHoleSize = 0; // Inner radius
@@ -131,6 +131,7 @@ class PizzaMaker {
         // Generate crust following the same pattern (but skip deformations for now)
         const crustGeometry = this.generateBaseCrustGeometry();
         const processedCrustGeometry = this.convertToProcessableGeometry(crustGeometry);
+        this.applyAdvancedDeformations(processedCrustGeometry, true); // true for crust-specific
         
         const crustMaterial = this.generateCrustMaterial();
         this.crustMesh = new THREE.Mesh(processedCrustGeometry, crustMaterial);
@@ -289,16 +290,21 @@ class PizzaMaker {
                     x = transformed.x;
                     z = transformed.y;
                     
-                    // Handle stellation - apply to outer ring
-                    if (this.stellation > 0 && ring === radialSegments) {
-                        // For stellation, create star pattern by alternating radius
-                        // For custom geometry, we need to create the alternating pattern differently
-                        const stepsPerSide = angularSegments / this.sides;
-                        const stepInSide = seg % stepsPerSide;
-                        const isMainVertex = stepInSide === 0; // First vertex of each side
-                        const stellationFactor = isMainVertex ? 1 : (1 - this.stellation);
-                        x *= stellationFactor;
-                        z *= stellationFactor;
+                    // Handle stellation - apply to ALL rings, not just the outer one
+                    if (this.stellation > 0) {
+                        // For stellation, create star pattern by alternating radii
+                        // Calculate which main polygon vertex this is closest to
+                        const segmentAngle = (2 * Math.PI) / this.sides;
+                        const closestMainAngle = Math.round(angle / segmentAngle) * segmentAngle;
+                        const angleDiff = Math.abs(angle - closestMainAngle);
+                        
+                        // If we're far from a main vertex angle, apply stellation reduction
+                        const maxAngleDiff = segmentAngle / 2;
+                        if (angleDiff > maxAngleDiff * 0.3) { // 30% threshold
+                            const stellationFactor = 1 - this.stellation * 0.7; // Max 70% reduction
+                            x *= stellationFactor;
+                            z *= stellationFactor;
+                        }
                     }
                     
                     positions[vertexIndex * 3] = x;
@@ -345,6 +351,8 @@ class PizzaMaker {
             const levelOffset = level * verticesPerLevel;
             const centerIndex = levelOffset; // Center vertex at each level
             const isTop = level === heightSegments;
+            
+
             
             // Connect center to first ring
             for (let seg = 0; seg < angularSegments; seg++) {
@@ -406,6 +414,8 @@ class PizzaMaker {
             indices.push(bottomCurr, topCurr, bottomNext);
             indices.push(bottomNext, topCurr, topNext);
         }
+        
+
     }
     
     generateDoughMaterial() {
