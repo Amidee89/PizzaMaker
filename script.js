@@ -23,8 +23,9 @@ class PizzaMaker {
         // Skeleton parameters for new features
         this.thicknessVariance = 0; // 0-1 scale
         this.thicknessVarianceDensity = 0.5;
-        this.bowlDomeAmount = 0; // -1 (bowl) to 1 (dome)
-        this.stellation = 0;
+        this.bowlDomeAmount = 0.1; // -1 (bowl) to 1 (dome) - TEST VALUE
+        this.pointiness = 0; // 0-1 scale for bowl/dome pointiness
+        this.stellation = 0.5; // TEST VALUE
         this.radiusRandomness = 0; // Waviness amplitude
         this.airPockets = 0; // Intensity
         this.doughnutHoleSize = 0; // Inner radius
@@ -114,27 +115,28 @@ class PizzaMaker {
         // Clear pizza box if exists
         if (this.pizzaBox) this.scene.remove(this.pizzaBox);
         
-        // Generate base dough
-        const doughGeometry = this.generateDoughGeometry();
-        this.applyDeformations(doughGeometry);
+        // Generate base dough geometry using custom approach for better vertex distribution
+        const doughGeometry = this.generateCustomDoughGeometry();
+        
+        // Convert to BufferGeometry and apply advanced deformations
+        const processedDoughGeometry = this.convertToProcessableGeometry(doughGeometry);
+        this.applyAdvancedDeformations(processedDoughGeometry);
         
         const doughMaterial = this.generateDoughMaterial();
-        this.doughMesh = new THREE.Mesh(doughGeometry, doughMaterial);
+        this.doughMesh = new THREE.Mesh(processedDoughGeometry, doughMaterial);
         this.doughMesh.castShadow = true;
         this.doughMesh.receiveShadow = true;
         this.pizzaGroup.add(this.doughMesh);
         
-        // Generate crust
-        const crustGeometry = this.generateCrustGeometry();
-        this.applyDeformations(crustGeometry, true); // true for crust-specific
+        // Generate crust following the same pattern (but skip deformations for now)
+        const crustGeometry = this.generateBaseCrustGeometry();
+        const processedCrustGeometry = this.convertToProcessableGeometry(crustGeometry);
         
         const crustMaterial = this.generateCrustMaterial();
-        this.crustMesh = new THREE.Mesh(crustGeometry, crustMaterial);
+        this.crustMesh = new THREE.Mesh(processedCrustGeometry, crustMaterial);
         this.crustMesh.castShadow = true;
         this.crustMesh.receiveShadow = true;
         this.pizzaGroup.add(this.crustMesh);
-        
-        this.applyPizzaTransform();
         
         // Skeleton for sauce
         this.generateSauce();
@@ -148,7 +150,7 @@ class PizzaMaker {
         this.generateSteam();
     }
     
-    generateDoughGeometry() {
+    generateBaseDoughGeometry() {
         const radius = 2 * (1 - this.crustProportion);
         const height = this.pizzaHeight;
 
@@ -227,18 +229,198 @@ class PizzaMaker {
         return geometry;
     }
     
+    /**
+     * Custom dough geometry with proper internal vertices for smooth deformations
+     * This replaces ExtrudeGeometry for better control over vertex distribution
+     */
+    generateCustomDoughGeometry() {
+        const radius = 2 * (1 - this.crustProportion);
+        const height = this.pizzaHeight;
+        
+        // Create geometry with radial subdivisions for smooth deformation
+        const radialSegments = 8; // Rings from center to edge
+        // For low-sided polygons, use exact sides. For higher sides, add smoothness
+        const angularSegments = this.sides < 6 ? this.sides : this.sides * 2; 
+        const heightSegments = 1; // Only 2 levels: bottom and top (0 and 1)
+        
+        const geometry = new THREE.BufferGeometry();
+        
+        // Calculate total vertices needed
+        const verticesPerLevel = 1 + (radialSegments * angularSegments); // center + rings
+        const totalVertices = verticesPerLevel * (heightSegments + 1); // levels from bottom to top
+        
+        const positions = new Float32Array(totalVertices * 3);
+        const normals = new Float32Array(totalVertices * 3);
+        const uvs = new Float32Array(totalVertices * 2);
+        const indices = [];
+        
+        let vertexIndex = 0;
+        
+        // Generate vertices level by level (bottom to top)
+        for (let level = 0; level <= heightSegments; level++) {
+            const y = (level / heightSegments - 0.5) * height; // -height/2 to +height/2
+            
+            // Center vertex for this level
+            positions[vertexIndex * 3] = 0;
+            positions[vertexIndex * 3 + 1] = y;
+            positions[vertexIndex * 3 + 2] = 0;
+            
+            normals[vertexIndex * 3] = 0;
+            normals[vertexIndex * 3 + 1] = 1;
+            normals[vertexIndex * 3 + 2] = 0;
+            
+            uvs[vertexIndex * 2] = 0.5;
+            uvs[vertexIndex * 2 + 1] = 0.5;
+            
+            const centerIndexThisLevel = vertexIndex;
+            vertexIndex++;
+            
+            // Ring vertices for this level
+            for (let ring = 1; ring <= radialSegments; ring++) {
+                const ringRadius = (ring / radialSegments) * radius;
+                
+                for (let seg = 0; seg < angularSegments; seg++) {
+                    const angle = (seg / angularSegments) * Math.PI * 2;
+                    let x = ringRadius * Math.cos(angle);
+                    let z = ringRadius * Math.sin(angle);
+                    
+                    // Apply transformations (ovalness, stellation, etc.)
+                    const transformed = this.transformPoint(x, z);
+                    x = transformed.x;
+                    z = transformed.y;
+                    
+                    // Handle stellation - apply to outer ring
+                    if (this.stellation > 0 && ring === radialSegments) {
+                        // For stellation, create star pattern by alternating radius
+                        // For custom geometry, we need to create the alternating pattern differently
+                        const stepsPerSide = angularSegments / this.sides;
+                        const stepInSide = seg % stepsPerSide;
+                        const isMainVertex = stepInSide === 0; // First vertex of each side
+                        const stellationFactor = isMainVertex ? 1 : (1 - this.stellation);
+                        x *= stellationFactor;
+                        z *= stellationFactor;
+                    }
+                    
+                    positions[vertexIndex * 3] = x;
+                    positions[vertexIndex * 3 + 1] = y;
+                    positions[vertexIndex * 3 + 2] = z;
+                    
+                    normals[vertexIndex * 3] = 0;
+                    normals[vertexIndex * 3 + 1] = 1;
+                    normals[vertexIndex * 3 + 2] = 0;
+                    
+                    uvs[vertexIndex * 2] = 0.5 + (x / (radius * 2));
+                    uvs[vertexIndex * 2 + 1] = 0.5 + (z / (radius * 2));
+                    
+                    vertexIndex++;
+                }
+            }
+        }
+        
+        // Generate triangular faces to create solid geometry
+        this.generateCustomGeometryFaces(indices, radialSegments, angularSegments, heightSegments);
+        
+        geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+        geometry.setAttribute('normal', new THREE.BufferAttribute(normals, 3));
+        geometry.setAttribute('uv', new THREE.BufferAttribute(uvs, 2));
+        
+        // Set the indices to create actual faces
+        geometry.setIndex(indices);
+        
+        return geometry;
+    }
+    
+    /**
+     * Generates triangular faces for the custom geometry
+     * @param {Array} indices - Array to populate with face indices
+     * @param {number} radialSegments 
+     * @param {number} angularSegments 
+     * @param {number} heightSegments 
+     */
+    generateCustomGeometryFaces(indices, radialSegments, angularSegments, heightSegments) {
+        const verticesPerLevel = 1 + (radialSegments * angularSegments);
+        
+        // Generate faces for each level (top and bottom caps)
+        for (let level = 0; level <= heightSegments; level++) {
+            const levelOffset = level * verticesPerLevel;
+            const centerIndex = levelOffset; // Center vertex at each level
+            const isTop = level === heightSegments;
+            
+            // Connect center to first ring
+            for (let seg = 0; seg < angularSegments; seg++) {
+                const next = (seg + 1) % angularSegments;
+                const curr = levelOffset + 1 + seg; // First ring starts at offset + 1
+                const nextVert = levelOffset + 1 + next;
+                
+                if (isTop) {
+                    // Top face - counter-clockwise when viewed from above
+                    indices.push(centerIndex, nextVert, curr);
+                } else {
+                    // Bottom face - clockwise when viewed from above (which is counter-clockwise from below)
+                    indices.push(centerIndex, curr, nextVert);
+                }
+            }
+            
+            // Connect rings to each other
+            for (let ring = 1; ring < radialSegments; ring++) {
+                const ringStart = levelOffset + 1 + (ring - 1) * angularSegments;
+                const nextRingStart = levelOffset + 1 + ring * angularSegments;
+                
+                for (let seg = 0; seg < angularSegments; seg++) {
+                    const next = (seg + 1) % angularSegments;
+                    
+                    const curr = ringStart + seg;
+                    const currNext = ringStart + next;
+                    const outer = nextRingStart + seg;
+                    const outerNext = nextRingStart + next;
+                    
+                    if (isTop) {
+                        // Top face - counter-clockwise winding when viewed from above
+                        indices.push(curr, currNext, outer);
+                        indices.push(currNext, outerNext, outer);
+                    } else {
+                        // Bottom face - clockwise winding when viewed from above
+                        indices.push(curr, outer, currNext);
+                        indices.push(currNext, outer, outerNext);
+                    }
+                }
+            }
+        }
+        
+        // Generate side faces connecting top and bottom
+        const bottomLevelOffset = 0;
+        const topLevelOffset = verticesPerLevel;
+        
+        // Only connect the outermost ring for side faces
+        const outerRingStart = 1 + (radialSegments - 1) * angularSegments;
+        
+        for (let seg = 0; seg < angularSegments; seg++) {
+            const next = (seg + 1) % angularSegments;
+            
+            const bottomCurr = bottomLevelOffset + outerRingStart + seg;
+            const bottomNext = bottomLevelOffset + outerRingStart + next;
+            const topCurr = topLevelOffset + outerRingStart + seg;
+            const topNext = topLevelOffset + outerRingStart + next;
+            
+            // Create two triangles for each side face
+            indices.push(bottomCurr, topCurr, bottomNext);
+            indices.push(bottomNext, topCurr, topNext);
+        }
+    }
+    
     generateDoughMaterial() {
         const material = new THREE.MeshPhongMaterial({
             color: this.doughColor,
             flatShading: false,
             transparent: true,
-            opacity: 0.9
+            opacity: 0.9,
+            wireframe: false // Set to true to debug mesh structure
         });
         // TODO: Add procedural texture for cooking effects (char marks, browning)
         return material;
     }
     
-    generateCrustGeometry() {
+    generateBaseCrustGeometry() {
         const outerRadius = 2; // Full radius
         const innerRadius = 2 * (1 - this.crustProportion); // Inner radius (where pizza ends)
         const height = this.pizzaHeight + this.crustThickness; // Crust is thicker
@@ -385,36 +567,443 @@ class PizzaMaker {
         };
     }
     
-    applyPizzaTransform() {
-        const rotation = this.ovalnessDirection * Math.PI / 180;
-        if (this.doughMesh) {
-            this.doughMesh.rotation.y = rotation;
-            this.doughMesh.scale.x = 1 + this.ovalness;
+    /**
+     * Converts ExtrudeGeometry to a BufferGeometry that can be subdivided and processed
+     * @param {THREE.ExtrudeGeometry} geometry 
+     * @returns {THREE.BufferGeometry}
+     */
+    convertToProcessableGeometry(geometry) {
+        // Convert to BufferGeometry if it isn't already
+        let bufferGeometry = geometry;
+        if (geometry.isGeometry) {
+            bufferGeometry = new THREE.BufferGeometry().fromGeometry(geometry);
         }
-        if (this.crustMesh) {
-            this.crustMesh.rotation.y = rotation;
-            this.crustMesh.scale.x = 1 + this.ovalness;
-        }
+        
+        return bufferGeometry;
     }
     
-    applyDeformations(geometry, isCrust = false) {
-        // For scalability: manipulate vertices here for new features
+    /**
+     * Applies advanced deformations that require vertex-level manipulation
+     * @param {THREE.BufferGeometry} geometry 
+     * @param {boolean} isCrust 
+     */
+    applyAdvancedDeformations(geometry, isCrust = false) {
         const positions = geometry.attributes.position;
         if (!positions) return;
+        
+        // Apply deformations in order of complexity
+        if (this.bowlDomeAmount !== 0) {
+            this.applyBowlDomeDeformation(geometry, isCrust);
+        }
+        
+        if (this.thicknessVariance > 0) {
+            this.applyThicknessVariance(geometry, isCrust);
+        }
+        
+        // TODO: Add more advanced deformations:
+        // - Air pockets
+        // - Radius randomness/waviness  
+        
+        geometry.computeVertexNormals();
+    }
+    
+    /**
+     * Enriches cap geometry by adding internal vertices for smooth deformations
+     * This is a much simpler approach that works with non-indexed ExtrudeGeometry
+     * @param {THREE.BufferGeometry} geometry 
+     * @param {boolean} isCrust 
+     */
+    enrichCapGeometry(geometry, isCrust = false) {
+        console.log('🔄 Enriching cap geometry with internal vertices...');
+        
+        const radius = isCrust ? 2 : 2 * (1 - this.crustProportion);
+        const height = isCrust ? this.pizzaHeight + this.crustThickness : this.pizzaHeight;
+        
+        console.log('- Working radius:', radius);
+        console.log('- Working height:', height);
+        
+        // Get current geometry data
+        const oldPositions = geometry.attributes.position.array;
+        const oldNormals = geometry.attributes.normal ? geometry.attributes.normal.array : null;
+        const oldUvs = geometry.attributes.uv ? geometry.attributes.uv.array : null;
+        
+        console.log('Original geometry has', oldPositions.length / 3, 'vertices');
+        
+        // Add internal vertices to caps in a simple grid pattern
+        const internalRings = 4; // Fewer rings for simpler approach
+        const angularSegments = this.sides * 2;
+        const newVerticesPerCap = internalRings * angularSegments; // No center vertex needed
+        const totalNewVertices = 2 * newVerticesPerCap; // top and bottom caps
+        
+        console.log('Adding', totalNewVertices, 'internal vertices');
+        console.log('- Internal rings:', internalRings);
+        console.log('- Angular segments:', angularSegments);
+        
+        // Create new arrays
+        const newPositions = new Float32Array(oldPositions.length + totalNewVertices * 3);
+        const newNormals = new Float32Array(oldNormals ? oldNormals.length + totalNewVertices * 3 : oldPositions.length + totalNewVertices * 3);
+        const newUvs = new Float32Array(oldUvs ? oldUvs.length + totalNewVertices * 2 : (oldPositions.length / 3) * 2 + totalNewVertices * 2);
+        
+        // Copy old data
+        newPositions.set(oldPositions);
+        if (oldNormals) {
+            newNormals.set(oldNormals);
+        } else {
+            // Generate normals for old vertices if they don't exist
+            for (let i = 0; i < oldPositions.length / 3; i++) {
+                newNormals[i * 3] = 0;
+                newNormals[i * 3 + 1] = 1;
+                newNormals[i * 3 + 2] = 0;
+            }
+        }
+        if (oldUvs) {
+            newUvs.set(oldUvs);
+        } else {
+            // Generate basic UVs if they don't exist
+            for (let i = 0; i < oldPositions.length / 3; i++) {
+                newUvs[i * 2] = 0.5;
+                newUvs[i * 2 + 1] = 0.5;
+            }
+        }
+        
+        const oldVertexCount = oldPositions.length / 3;
+        let newVertexIndex = oldVertexCount;
+        
+        // Add internal vertices for top cap
+        console.log('Adding internal vertices for top cap at y =', height/2);
+        for (let ring = 1; ring <= internalRings; ring++) {
+            const ringRadius = (ring / (internalRings + 1)) * radius; // Don't go to full radius
+            
+            for (let seg = 0; seg < angularSegments; seg++) {
+                const angle = (seg / angularSegments) * Math.PI * 2;
+                let x = ringRadius * Math.cos(angle);
+                let z = ringRadius * Math.sin(angle);
+                
+                // Apply transformations
+                const transformed = this.transformPoint(x, z);
+                x = transformed.x;
+                z = transformed.y;
+                
+                // Position
+                newPositions[newVertexIndex * 3] = x;
+                newPositions[newVertexIndex * 3 + 1] = height / 2;
+                newPositions[newVertexIndex * 3 + 2] = z;
+                
+                // Normal (pointing up)
+                newNormals[newVertexIndex * 3] = 0;
+                newNormals[newVertexIndex * 3 + 1] = 1;
+                newNormals[newVertexIndex * 3 + 2] = 0;
+                
+                // UV
+                newUvs[newVertexIndex * 2] = 0.5 + (x / (radius * 2));
+                newUvs[newVertexIndex * 2 + 1] = 0.5 + (z / (radius * 2));
+                
+                newVertexIndex++;
+            }
+        }
+        
+        // Add internal vertices for bottom cap
+        console.log('Adding internal vertices for bottom cap at y =', -height/2);
+        for (let ring = 1; ring <= internalRings; ring++) {
+            const ringRadius = (ring / (internalRings + 1)) * radius;
+            
+            for (let seg = 0; seg < angularSegments; seg++) {
+                const angle = (seg / angularSegments) * Math.PI * 2;
+                let x = ringRadius * Math.cos(angle);
+                let z = ringRadius * Math.sin(angle);
+                
+                // Apply transformations
+                const transformed = this.transformPoint(x, z);
+                x = transformed.x;
+                z = transformed.y;
+                
+                // Position
+                newPositions[newVertexIndex * 3] = x;
+                newPositions[newVertexIndex * 3 + 1] = -height / 2;
+                newPositions[newVertexIndex * 3 + 2] = z;
+                
+                // Normal (pointing down)
+                newNormals[newVertexIndex * 3] = 0;
+                newNormals[newVertexIndex * 3 + 1] = -1;
+                newNormals[newVertexIndex * 3 + 2] = 0;
+                
+                // UV
+                newUvs[newVertexIndex * 2] = 0.5 + (x / (radius * 2));
+                newUvs[newVertexIndex * 2 + 1] = 0.5 + (z / (radius * 2));
+                
+                newVertexIndex++;
+            }
+        }
+        
+        // Update geometry attributes (keep as non-indexed)
+        geometry.setAttribute('position', new THREE.BufferAttribute(newPositions, 3));
+        geometry.setAttribute('normal', new THREE.BufferAttribute(newNormals, 3));
+        geometry.setAttribute('uv', new THREE.BufferAttribute(newUvs, 2));
+        
+        console.log('✅ Cap enrichment complete. Total vertices:', newVertexIndex);
+        console.log('NOTE: New vertices are internal only - ExtrudeGeometry structure preserved');
+    }
+    
+    /**
+     * OLD METHOD - keeping for reference but not using
+     * Subdivides the top and bottom caps of the extruded geometry to add more vertices for deformation
+     * @param {THREE.BufferGeometry} geometry 
+     * @param {number} subdivisionLevel - Number of radial rings to create
+     * @param {boolean} isCrust 
+     */
+    subdivideCaps_OLD(geometry, subdivisionLevel, isCrust = false) {
+        console.log('🔄 Starting cap subdivision...');
+        console.log('- Subdivision level:', subdivisionLevel);
+        console.log('- Is crust:', isCrust);
+        
+        const radius = isCrust ? 2 : 2 * (1 - this.crustProportion);
+        const height = isCrust ? this.pizzaHeight + this.crustThickness : this.pizzaHeight;
+        
+        console.log('- Working radius:', radius);
+        console.log('- Working height:', height);
+        
+        // Get current geometry data
+        const oldPositions = geometry.attributes.position.array;
+        const oldNormals = geometry.attributes.normal ? geometry.attributes.normal.array : null;
+        const oldUvs = geometry.attributes.uv ? geometry.attributes.uv.array : null;
+        const oldIndices = geometry.index ? geometry.index.array : null;
+        
+        console.log('Original geometry has', oldPositions.length / 3, 'vertices');
+        
+        // Create new arrays with room for additional cap vertices
+        const angularSegments = this.sides * 2; // More segments for smoother caps
+        const newVerticesPerCap = 1 + (subdivisionLevel * angularSegments); // center + rings
+        const totalNewVertices = 2 * newVerticesPerCap; // top and bottom caps
+        
+        console.log('Adding', totalNewVertices, 'new vertices for caps');
+        console.log('- Angular segments:', angularSegments);
+        console.log('- Vertices per cap:', newVerticesPerCap);
+        
+        const newPositions = new Float32Array(oldPositions.length + totalNewVertices * 3);
+        const newNormals = new Float32Array(oldNormals ? oldNormals.length + totalNewVertices * 3 : totalNewVertices * 3);
+        const newUvs = new Float32Array(oldUvs ? oldUvs.length + totalNewVertices * 2 : totalNewVertices * 2);
+        
+        // Copy old data
+        newPositions.set(oldPositions);
+        if (oldNormals) newNormals.set(oldNormals);
+        if (oldUvs) newUvs.set(oldUvs);
+        
+        const oldVertexCount = oldPositions.length / 3;
+        let newVertexIndex = oldVertexCount;
+        
+        // Generate top cap (y = height/2)
+        console.log('Generating top cap at y =', height/2);
+        newVertexIndex = this.generateCapVertices(
+            newPositions, newNormals, newUvs, 
+            newVertexIndex, radius, height/2, 
+            subdivisionLevel, angularSegments, true
+        );
+        
+        // Generate bottom cap (y = -height/2)
+        console.log('Generating bottom cap at y =', -height/2);
+        newVertexIndex = this.generateCapVertices(
+            newPositions, newNormals, newUvs, 
+            newVertexIndex, radius, -height/2, 
+            subdivisionLevel, angularSegments, false
+        );
+        
+        // Update geometry attributes
+        geometry.setAttribute('position', new THREE.BufferAttribute(newPositions, 3));
+        geometry.setAttribute('normal', new THREE.BufferAttribute(newNormals, 3));
+        geometry.setAttribute('uv', new THREE.BufferAttribute(newUvs, 2));
+        
+        // Generate indices for the new cap faces
+        this.generateCapIndices(geometry, oldVertexCount, subdivisionLevel, angularSegments);
+        
+        console.log('✅ Cap subdivision complete. Total vertices:', newVertexIndex);
+    }
+    
+    /**
+     * Generates vertices for a single cap (top or bottom)
+     */
+    generateCapVertices(positions, normals, uvs, startIndex, radius, yLevel, subdivisionLevel, angularSegments, isTop) {
+        let vertexIndex = startIndex;
+        
+        // Add center vertex
+        const centerIdx = vertexIndex * 3;
+        positions[centerIdx] = 0;
+        positions[centerIdx + 1] = yLevel;
+        positions[centerIdx + 2] = 0;
+        
+        const normalIdx = vertexIndex * 3;
+        normals[normalIdx] = 0;
+        normals[normalIdx + 1] = isTop ? 1 : -1;
+        normals[normalIdx + 2] = 0;
+        
+        const uvIdx = vertexIndex * 2;
+        uvs[uvIdx] = 0.5;
+        uvs[uvIdx + 1] = 0.5;
+        
+        vertexIndex++;
+        
+        // Add rings of vertices
+        for (let ring = 1; ring <= subdivisionLevel; ring++) {
+            const ringRadius = (ring / subdivisionLevel) * radius;
+            
+            for (let seg = 0; seg < angularSegments; seg++) {
+                const angle = (seg / angularSegments) * Math.PI * 2;
+                let x = ringRadius * Math.cos(angle);
+                let z = ringRadius * Math.sin(angle);
+                
+                // Apply the same transformations as the base geometry
+                const transformed = this.transformPoint(x, z);
+                x = transformed.x;
+                z = transformed.y; // Note: transformPoint returns {x, y} which maps to {x, z}
+                
+                const posIdx = vertexIndex * 3;
+                positions[posIdx] = x;
+                positions[posIdx + 1] = yLevel;
+                positions[posIdx + 2] = z;
+                
+                const normIdx = vertexIndex * 3;
+                normals[normIdx] = 0;
+                normals[normIdx + 1] = isTop ? 1 : -1;
+                normals[normIdx + 2] = 0;
+                
+                const uvIdx = vertexIndex * 2;
+                uvs[uvIdx] = 0.5 + (x / (radius * 2));
+                uvs[uvIdx + 1] = 0.5 + (z / (radius * 2));
+                
+                vertexIndex++;
+            }
+        }
+        
+        return vertexIndex;
+    }
+    
+    /**
+     * Generates indices for the cap faces
+     */
+    generateCapIndices(geometry, oldVertexCount, subdivisionLevel, angularSegments) {
+        console.log('Generating cap face indices...');
+        
+        const oldIndices = geometry.index ? geometry.index.array : [];
+        const newFaceCount = 2 * subdivisionLevel * angularSegments; // triangles for both caps
+        const newIndices = new Uint32Array(oldIndices.length + newFaceCount * 3);
+        
+        // Copy old indices
+        newIndices.set(oldIndices);
+        let indexPtr = oldIndices.length;
+        
+        // Generate indices for both caps
+        for (let cap = 0; cap < 2; cap++) {
+            const isTop = cap === 0;
+            const centerIndex = oldVertexCount + cap * (1 + subdivisionLevel * angularSegments);
+            
+            console.log(`Generating ${isTop ? 'top' : 'bottom'} cap indices, center at vertex`, centerIndex);
+            
+            // Connect center to first ring
+            for (let seg = 0; seg < angularSegments; seg++) {
+                const next = (seg + 1) % angularSegments;
+                const curr = centerIndex + 1 + seg;
+                const nextVert = centerIndex + 1 + next;
+                
+                if (isTop) {
+                    newIndices[indexPtr++] = centerIndex;
+                    newIndices[indexPtr++] = curr;
+                    newIndices[indexPtr++] = nextVert;
+                } else {
+                    newIndices[indexPtr++] = centerIndex;
+                    newIndices[indexPtr++] = nextVert;
+                    newIndices[indexPtr++] = curr;
+                }
+            }
+            
+            // Connect rings
+            for (let ring = 1; ring < subdivisionLevel; ring++) {
+                const ringStart = centerIndex + 1 + (ring - 1) * angularSegments;
+                const nextRingStart = centerIndex + 1 + ring * angularSegments;
+                
+                for (let seg = 0; seg < angularSegments; seg++) {
+                    const next = (seg + 1) % angularSegments;
+                    
+                    if (isTop) {
+                        // First triangle
+                        newIndices[indexPtr++] = ringStart + seg;
+                        newIndices[indexPtr++] = nextRingStart + seg;
+                        newIndices[indexPtr++] = ringStart + next;
+                        
+                        // Second triangle
+                        newIndices[indexPtr++] = ringStart + next;
+                        newIndices[indexPtr++] = nextRingStart + seg;
+                        newIndices[indexPtr++] = nextRingStart + next;
+                    } else {
+                        // First triangle (reversed winding)
+                        newIndices[indexPtr++] = ringStart + seg;
+                        newIndices[indexPtr++] = ringStart + next;
+                        newIndices[indexPtr++] = nextRingStart + seg;
+                        
+                        // Second triangle (reversed winding)
+                        newIndices[indexPtr++] = ringStart + next;
+                        newIndices[indexPtr++] = nextRingStart + next;
+                        newIndices[indexPtr++] = nextRingStart + seg;
+                    }
+                }
+            }
+        }
+        
+        geometry.setIndex(new THREE.BufferAttribute(newIndices, 1));
+        console.log('✅ Cap indices generated, total faces:', newIndices.length / 3);
+    }
+    
+    /**
+     * Applies bowl/dome deformation to the geometry
+     * @param {THREE.BufferGeometry} geometry 
+     * @param {boolean} isCrust 
+     */
+    applyBowlDomeDeformation(geometry, isCrust = false) {
+        const positions = geometry.attributes.position;
+        const maxRadius = isCrust ? 2 : 2 * (1 - this.crustProportion);
+        
         for (let i = 0; i < positions.count; i++) {
             const x = positions.getX(i);
-            const y = positions.getY(i);
-            const z = positions.getZ(i);
+            const z = positions.getZ(i); // Note: z is horizontal in our coordinate system
+            const y = positions.getY(i); // y is vertical
             
-            // TODO: Apply thicknessVariance, bowlDomeAmount, radiusRandomness, airPockets, etc.
-            // Example for bowl/dome (assuming z is up):
-            // const dist = Math.sqrt(x*x + y*y);
-            // const maxRadius = 2;
-            // positions.setZ(i, z + this.bowlDomeAmount * (1 - (dist / maxRadius)**2) * this.pizzaHeight);
+            // Calculate distance from center in horizontal plane
+            const dist = Math.sqrt(x * x + z * z);
+            const normalizedDist = Math.min(dist / maxRadius, 1);
             
-            // For crust-specific: use isCrust to apply crustRadiusRandomness, etc.
+            // Apply bowl (negative) or dome (positive) curvature
+            // Pointiness parameter controls the falloff curve (0 = quadratic, 1 = linear/pointy)
+            const falloffExponent = 2 - this.pointiness * 1.5; // Range from 2 (smooth) to 0.5 (pointy)
+            const curvatureAmount = this.bowlDomeAmount * (1 - Math.pow(normalizedDist, falloffExponent)) * this.pizzaHeight;
+            
+            positions.setY(i, y + curvatureAmount);
         }
-        geometry.computeVertexNormals();
+        
+        positions.needsUpdate = true;
+    }
+    
+    /**
+     * Applies thickness variance to create natural irregularities
+     * @param {THREE.BufferGeometry} geometry 
+     * @param {boolean} isCrust 
+     */
+    applyThicknessVariance(geometry, isCrust = false) {
+        const positions = geometry.attributes.position;
+        const density = isCrust ? this.crustThicknessVariance : this.thicknessVarianceDensity;
+        const intensity = this.thicknessVariance;
+        
+        for (let i = 0; i < positions.count; i++) {
+            const x = positions.getX(i);
+            const z = positions.getZ(i);
+            const y = positions.getY(i);
+            
+            // Use simple noise-like function for thickness variation
+            // TODO: Replace with proper Perlin noise for better results
+            const noiseValue = Math.sin(x * density * 10) * Math.cos(z * density * 10);
+            const variance = noiseValue * intensity * this.pizzaHeight * 0.2;
+            
+            positions.setY(i, y + variance);
+        }
+        
+        positions.needsUpdate = true;
     }
     
     generateSauce() {
@@ -519,6 +1108,12 @@ class PizzaMaker {
         document.getElementById('thickness-variance-density-slider').addEventListener('input', (e) => {
             this.thicknessVarianceDensity = parseFloat(e.target.value);
             document.getElementById('thickness-variance-density-value').textContent = this.thicknessVarianceDensity.toFixed(1);
+            this.updatePizza();
+        });
+
+        document.getElementById('pointiness-slider').addEventListener('input', (e) => {
+            this.pointiness = parseFloat(e.target.value);
+            document.getElementById('pointiness-value').textContent = this.pointiness.toFixed(2);
             this.updatePizza();
         });
 

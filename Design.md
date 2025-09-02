@@ -7,7 +7,8 @@ Shape:
 bowl/dome
 thickness variance intensity
 thickness variance density
-radius randomness/wavinessair pockets (can and should also "bump up" the surface)doughnut hole size
+radius randomness/waviness
+air pockets (can and should also "bump up" the surface)doughnut hole size
 fractal (Yes, in that, the shape will self reflect from a side of itself n times. I said it's crazy)
 color
 texture
