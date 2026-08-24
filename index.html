@@ -1,122 +1,120 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Pizza Maker 3D</title>
-    <link rel="stylesheet" href="styles.css">
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-    <script src="https://unpkg.com/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>PizzaMaker 3D - Artisanal 3D Pizza Synthesizer & Customizer</title>
+  <meta name="description" content="Design your dream pizza in real-time 3D with procedural dough, wood-fired charring, parametric slicing, and rich topping scattering.">
+
+  <!-- Google Fonts: Outfit & JetBrains Mono -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=Outfit:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+
+  <link rel="stylesheet" href="index.css">
+
+  <!-- Three.js ES Modules Import Map -->
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+        "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+      }
+    }
+  </script>
 </head>
 <body>
-    <div class="container">
-        <header>
-            <h1>🍕 Pizza Maker 3D</h1>
-            <p>Customize your perfect pizza shape!</p>
-        </header>
-        <main>
-            <aside class="controls-panel">
-                <!-- Ported controls -->
-                <div class="control-group">
-                    <label>Number of Sides:</label>
-                    <div class="slider-container">
-                        <input type="range" id="sides-slider" min="3" max="50" value="8" class="slider">
-                        <span id="sides-value" class="slider-value">8</span>
-                    </div>
-                </div>
-                <div class="control-group">
-                    <label>Stellation:</label>
-                    <div class="slider-container">
-                        <input type="range" id="stellation-slider" min="0" max="1" step="0.01" value="0" class="slider">
-                        <span id="stellation-value" class="slider-value">0.0</span>
-                    </div>
-                </div>
-                <div class="control-group">
-                    <label>Pizza Height:</label>
-                    <div class="slider-container">
-                        <input type="range" id="pizza-height-slider" min="0.1" max="2" step="0.1" value="0.5" class="slider">
-                        <span id="pizza-height-value" class="slider-value">0.5</span>
-                    </div>
-                </div>
-                <div class="control-group">
-                    <label>Crust Thickness:</label>
-                    <div class="slider-container">
-                        <input type="range" id="crust-thickness-slider" min="0" max="1" step="0.1" value="0.3" class="slider">
-                        <span id="crust-thickness-value" class="slider-value">0.3</span>
-                    </div>
-                </div>
-                <div class="control-group">
-                    <label>Crust Proportion:</label>
-                    <div class="slider-container">
-                        <input type="range" id="crust-proportion-slider" min="0" max="0.99" step="0.01" value="0.2" class="slider">
-                        <span id="crust-proportion-value" class="slider-value">0.2</span>
-                    </div>
-                </div>
-                <div class="control-group">
-                    <label>Ovalness:</label>
-                    <div class="slider-container">
-                        <input type="range" id="ovalness-slider" min="0" max="3" step="0.01" value="0" class="slider">
-                        <span id="ovalness-value" class="slider-value">0.00</span>
-                    </div>
-                </div>
-                <div class="control-group">
-                    <label>Ovalness Direction:</label>
-                    <div class="slider-container">
-                        <input type="range" id="ovalness-direction-slider" min="0" max="360" value="0" class="slider">
-                        <span id="ovalness-direction-value" class="slider-value">0°</span>
-                    </div>
-                </div>
-                <!-- Skeleton for new controls (examples) -->
-                <div class="control-group">
-                    <label>Bowl/Dome:</label>
-                    <div class="slider-container">
-                        <input type="range" id="bowl-dome-slider" min="-1" max="1" step="0.1" value="0" class="slider">
-                        <span id="bowl-dome-value" class="slider-value">0</span>
-                    </div>
-                </div>
-
-                <div class="control-group">
-                    <label>Pointiness:</label>
-                    <div class="slider-container">
-                        <input type="range" id="pointiness-slider" min="0" max="1" step="0.01" value="0" class="slider">
-                        <span id="pointiness-value" class="slider-value">0.00</span>
-                    </div>
-                </div>
-
-                <div class="control-group">
-                    <label>Thickness Variance Density:</label>
-                    <div class="slider-container">
-                        <input type="range" id="thickness-variance-density-slider" min="0" max="1" step="0.1" value="0.5" class="slider">
-                        <span id="thickness-variance-density-value" class="slider-value">0.5</span>
-                    </div>
-                </div>
-                <div class="control-group">
-                    <label>Thickness Variance Intensity:</label>
-                    <div class="slider-container">
-                        <input type="range" id="thickness-variance-slider" min="0" max="1" step="0.1" value="0" class="slider">
-                        <span id="thickness-variance-value" class="slider-value">0</span>
-                    </div>
-                </div>
-                <!-- TODO: Add more sliders/groups for crust, sauce, toppings, etc. -->
-                <!-- e.g., Buttons for add topping/seasoning -->
-            </aside>
-            <section class="viewer-container">
-                <div id="pizza-viewer"></div>
-                <div class="instructions">
-                    <p>🖱️ Drag to rotate • 🔍 Scroll to zoom</p>
-                </div>
-                <div class="slice-controls">
-                    <div class="control-group">
-                        <label>Number of Slices:</label>
-                        <div class="slider-container">
-                            <input type="range" id="slices-slider" min="1" max="8" value="8" class="slider">
-                            <span id="slices-value" class="slider-value">8</span>
-                        </div>
-                    </div>
-                </div>
-            </section>
-        </main>
+  <!-- Loading Splash Overlay -->
+  <div id="loadingOverlay" class="loading-overlay">
+    <div class="loader-content">
+      <div class="pizza-spinner">🍕</div>
+      <h2 class="loader-title">PIZZAMAKER 3D</h2>
+      <p class="loader-sub">Heating the woodfired stone oven & preparing dough...</p>
     </div>
-    <script src="script.js"></script>
+  </div>
+
+  <!-- Top App Navigation & Presets Bar -->
+  <header class="app-header">
+    <div class="header-brand">
+      <span class="brand-logo">🍕</span>
+      <div class="brand-text">
+        <h1 class="brand-title">PIZZAMAKER <span>3D</span></h1>
+        <span class="brand-badge">PRO PROCEDURAL ENGINE</span>
+      </div>
+    </div>
+
+    <!-- Presets Quick Bar -->
+    <div class="preset-scroll-container">
+      <div id="presetBar" class="preset-bar">
+        <!-- Injected via JavaScript -->
+      </div>
+    </div>
+
+    <!-- Header Action Buttons -->
+    <div class="header-actions">
+      <button id="btnRandomize" class="action-btn btn-random" title="Randomize Pizza">
+        <span>🎲</span> Randomize
+      </button>
+      <button id="btnSnapshot" class="action-btn btn-snapshot" title="Take HD Screenshot">
+        <span>📸</span> Snapshot
+      </button>
+      <button id="btnExport3D" class="action-btn btn-export" title="Export 3D Model (GLTF)">
+        <span>💾</span> Export 3D
+      </button>
+      <button id="btnCopyRecipe" class="action-btn btn-recipe" title="Copy Pizza Recipe JSON">
+        <span>📋</span> Recipe
+      </button>
+    </div>
+  </header>
+
+  <!-- Main Viewport Workspace -->
+  <main class="app-main">
+    <!-- 3D WebGL Canvas Container -->
+    <div class="viewport-container">
+      <canvas id="webglCanvas"></canvas>
+
+      <!-- Viewport Floating HUD: Camera Quick Tools -->
+      <div class="viewport-hud-top">
+        <div class="camera-toolbar">
+          <button id="camHero" class="hud-btn active" title="Hero 45° Angle">🎬 Hero 45°</button>
+          <button id="camTop" class="hud-btn" title="Top-Down Flat Lay">📐 Top Down</button>
+          <button id="camClose" class="hud-btn" title="Cross-Section Macro Close-Up">🔍 Macro Crumb</button>
+          <button id="camAutoRotate" class="hud-btn" title="Toggle Auto-Rotation">🔄 Rotate</button>
+        </div>
+      </div>
+
+      <!-- Viewport Floating HUD: Slicing Quick Bar -->
+      <div class="viewport-hud-bottom">
+        <div id="sliceQuickToolbar" class="slice-quick-toolbar">
+          <!-- Injected via JavaScript -->
+        </div>
+      </div>
+
+      <div class="viewport-hint">
+        💡 <span>Click any pizza slice to pull it out & inspect the internal crumb! Drag to rotate, scroll to zoom.</span>
+      </div>
+    </div>
+
+    <!-- Right-hand Floating Glassmorphic Inspector Sidebar -->
+    <aside class="controls-sidebar">
+      <div class="sidebar-header">
+        <div class="sidebar-title-group">
+          <h2 class="sidebar-title">PIZZA STUDIO INSPECTOR</h2>
+          <span class="sidebar-subtitle">Live Parametric Synthesis</span>
+        </div>
+        <button id="btnToggleAllSections" class="btn-toggle-sections" title="Expand / Collapse all categories">⊟ Collapse All</button>
+      </div>
+
+      <div id="controlsSidebar" class="sidebar-content">
+        <!-- Accordion Cards dynamically generated by UIManager -->
+      </div>
+    </aside>
+  </main>
+
+  <!-- Toast Notification Container -->
+  <div id="toastNotification" class="toast-popup"></div>
+
+  <!-- Main Application Script -->
+  <script type="module" src="src/main.js?v=2.1"></script>
 </body>
 </html>
