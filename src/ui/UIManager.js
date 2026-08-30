@@ -1,10 +1,10 @@
 /**
  * Glassmorphic UI Manager for PizzaMaker 3D.
  * Dynamically builds accordion controls, custom range sliders with live badges,
- * preset buttons, topping manager layers, quick-slice toolbars, and export tools.
+ * preset buttons, Toppings Studio, Seasonings Studio, quick-slice toolbars, and export tools.
  */
 
-import { PARAM_DEFINITIONS, CATEGORIES, AVAILABLE_TOPPINGS } from '../config/parameters.js';
+import { PARAM_DEFINITIONS, CATEGORIES, AVAILABLE_TOPPINGS, AVAILABLE_SEASONINGS } from '../config/parameters.js';
 import { PRESETS } from '../config/presets.js';
 
 export function getStepPrecision(step) {
@@ -30,6 +30,7 @@ export class UIManager {
     this.presetBarContainer = document.getElementById('presetBar');
     this.sliceToolbar = document.getElementById('sliceQuickToolbar');
     this.toppingLayersContainer = null;
+    this.seasoningLayersContainer = null;
     this.inputElements = new Map();
   }
 
@@ -82,18 +83,18 @@ export class UIManager {
       // Accordion Body
       const body = document.createElement('div');
       body.className = 'accordion-body';
-      // Open all categories by default so everything is immediately visible and accessible
       card.classList.add('open');
 
       header.addEventListener('click', () => {
         card.classList.toggle('open');
       });
 
-      // Special content for Toppings Studio
+      // Dedicated studio cards for Toppings and Seasonings
       if (cat.id === 'toppings') {
         this.renderToppingsStudio(body);
+      } else if (cat.id === 'seasoning') {
+        this.renderSeasoningsStudio(body);
       } else {
-        // Render parameters matching this category
         for (const [key, def] of Object.entries(PARAM_DEFINITIONS)) {
           if (def.category === cat.id) {
             const row = this.createControlRow(key, def);
@@ -146,7 +147,6 @@ export class UIManager {
         valBadge.textContent = formatValueWithUnit(numVal, def);
         this.app.updateSingleParameter(key, numVal);
 
-        // Sync visible slices limit if total slices changed
         if (key === 'slice_total') {
           this.syncSliceMaxLimits(numVal);
         }
@@ -239,7 +239,7 @@ export class UIManager {
 
     const toppings = this.app.toppings || [];
     if (toppings.length === 0) {
-      this.toppingLayersContainer.innerHTML = '<div class="empty-hint">No active topping layers. Click "Add Topping" above to add some!</div>';
+      this.toppingLayersContainer.innerHTML = '<div class="empty-hint">No active topping layers. Click "Add Topping Layer" above to add some!</div>';
       return;
     }
 
@@ -247,7 +247,6 @@ export class UIManager {
       const row = document.createElement('div');
       row.className = 'topping-layer-card';
 
-      // Type Selector Dropdown
       const select = document.createElement('select');
       select.className = 'dropdown-select topping-type-select';
       for (const t of AVAILABLE_TOPPINGS) {
@@ -259,7 +258,7 @@ export class UIManager {
       }
       select.addEventListener('change', (e) => {
         this.app.toppings[index].type = e.target.value;
-        this.app.rebuildToppings();
+        this.app.scheduleToppingsRebuild();
       });
 
       // Quantity Slider
@@ -276,7 +275,7 @@ export class UIManager {
         const val = parseInt(e.target.value, 10);
         layer.count = val;
         countWrapper.querySelector('.badge-count').textContent = val;
-        this.app.rebuildToppings();
+        this.app.scheduleToppingsRebuild();
       });
       countWrapper.appendChild(countSlider);
 
@@ -296,7 +295,7 @@ export class UIManager {
         const val = parseFloat(e.target.value);
         layer.scale = val;
         scaleWrapper.querySelector('.badge-scale').textContent = `${Number(val.toFixed(2))}x`;
-        this.app.rebuildToppings();
+        this.app.scheduleToppingsRebuild();
       });
       scaleWrapper.appendChild(scaleSlider);
 
@@ -319,6 +318,119 @@ export class UIManager {
       row.appendChild(countWrapper);
       row.appendChild(scaleWrapper);
       this.toppingLayersContainer.appendChild(row);
+    });
+  }
+
+  renderSeasoningsStudio(container) {
+    container.innerHTML = '';
+
+    const headerActions = document.createElement('div');
+    headerActions.className = 'toppings-header-actions';
+
+    const addBtn = document.createElement('button');
+    addBtn.className = 'btn-secondary btn-sm';
+    addBtn.innerHTML = `<span>➕ Add Seasoning / Oil</span>`;
+    addBtn.addEventListener('click', () => {
+      this.app.addSeasoningLayer('oregano', 100, 'Uniform Scatter', 0.5);
+      this.syncSeasoningsList();
+    });
+
+    headerActions.appendChild(addBtn);
+    container.appendChild(headerActions);
+
+    this.seasoningLayersContainer = document.createElement('div');
+    this.seasoningLayersContainer.className = 'toppings-layers-list';
+    container.appendChild(this.seasoningLayersContainer);
+
+    this.syncSeasoningsList();
+  }
+
+  syncSeasoningsList() {
+    if (!this.seasoningLayersContainer) return;
+    this.seasoningLayersContainer.innerHTML = '';
+
+    const seasonings = this.app.seasonings || [];
+    if (seasonings.length === 0) {
+      this.seasoningLayersContainer.innerHTML = '<div class="empty-hint">No active seasonings. Click "Add Seasoning / Oil" above to stack oregano, chili, parmesan, EVOO, or pepper!</div>';
+      return;
+    }
+
+    seasonings.forEach((layer, index) => {
+      const row = document.createElement('div');
+      row.className = 'topping-layer-card';
+
+      const select = document.createElement('select');
+      select.className = 'dropdown-select topping-type-select';
+      for (const s of AVAILABLE_SEASONINGS) {
+        const opt = document.createElement('option');
+        opt.value = s.id;
+        opt.textContent = `${s.icon} ${s.name}`;
+        if (s.id === layer.type) opt.selected = true;
+        select.appendChild(opt);
+      }
+      select.addEventListener('change', (e) => {
+        this.app.seasonings[index].type = e.target.value;
+        this.app.scheduleToppingsRebuild();
+      });
+
+      // Density / Flake count slider
+      const densityWrapper = document.createElement('div');
+      densityWrapper.className = 'topping-slider-group';
+      densityWrapper.innerHTML = `<label>Flake Count: <span class="badge-count">${Math.round(layer.density || 100)}</span></label>`;
+      const densitySlider = document.createElement('input');
+      densitySlider.type = 'range';
+      densitySlider.min = 10;
+      densitySlider.max = 300;
+      densitySlider.step = 10;
+      densitySlider.value = Math.round(layer.density || 100);
+      densitySlider.className = 'range-slider';
+      densitySlider.addEventListener('input', (e) => {
+        const val = parseInt(e.target.value, 10);
+        layer.density = val;
+        densityWrapper.querySelector('.badge-count').textContent = val;
+        this.app.scheduleToppingsRebuild();
+      });
+      densityWrapper.appendChild(densitySlider);
+
+      // Scatter Mode
+      const modeWrapper = document.createElement('div');
+      modeWrapper.className = 'topping-slider-group';
+      modeWrapper.innerHTML = `<label>Distribution Pattern:</label>`;
+      const modeSelect = document.createElement('select');
+      modeSelect.className = 'dropdown-select';
+      const modes = ['Uniform Scatter', 'Center Heavy', 'Crust Border', 'Spiral Swirl'];
+      for (const m of modes) {
+        const opt = document.createElement('option');
+        opt.value = m;
+        opt.textContent = m;
+        if (m === layer.spreadMode) opt.selected = true;
+        modeSelect.appendChild(opt);
+      }
+      modeSelect.addEventListener('change', (e) => {
+        layer.spreadMode = e.target.value;
+        this.app.scheduleToppingsRebuild();
+      });
+      modeWrapper.appendChild(modeSelect);
+
+      // Remove button
+      const removeBtn = document.createElement('button');
+      removeBtn.className = 'btn-icon-danger';
+      removeBtn.innerHTML = '🗑️';
+      removeBtn.title = 'Remove seasoning';
+      removeBtn.addEventListener('click', () => {
+        this.app.removeSeasoningLayer(index);
+        this.syncSeasoningsList();
+      });
+
+      const topRow = document.createElement('div');
+      topRow.className = 'topping-card-top';
+      topRow.appendChild(select);
+      topRow.appendChild(removeBtn);
+
+      row.appendChild(topRow);
+      row.appendChild(densityWrapper);
+      row.appendChild(modeWrapper);
+      this.seasoningLayersContainer.appendChild(row);
     });
   }
 
@@ -390,7 +502,6 @@ export class UIManager {
       if (visBadge) visBadge.textContent = `${visSlider.value} / ${totalSlices}`;
     }
 
-    // Sync sidebar inputs
     const sidebarTotal = this.inputElements.get('slice_total');
     if (sidebarTotal) {
       sidebarTotal.input.value = totalSlices;
@@ -477,7 +588,7 @@ export class UIManager {
     }
   }
 
-  syncUIValues(params, toppings) {
+  syncUIValues(params, toppings, seasonings) {
     for (const [key, val] of Object.entries(params)) {
       const item = this.inputElements.get(key);
       if (!item) continue;
@@ -493,7 +604,6 @@ export class UIManager {
       }
     }
 
-    // Sync slice quick bar
     if (params.slice_total) {
       this.syncSliceMaxLimits(params.slice_total);
       if (this.sliceToolbar) {
@@ -511,5 +621,6 @@ export class UIManager {
     }
 
     this.syncToppingsList();
+    this.syncSeasoningsList();
   }
 }

@@ -75,12 +75,12 @@ export const PARAM_DEFINITIONS = {
     category: 'shape',
     label: 'Bowl / Dome Warp',
     type: 'slider',
-    min: -1.0,
-    max: 1.0,
+    min: -3.0,
+    max: 3.0,
     step: 0.05,
     default: 0.0,
     unit: 'warp',
-    description: 'Negative = Deep dish bowl; Positive = Convex center dome'
+    description: 'Negative = Deep dish bowl; Positive = Convex center dome (Extended 3x range)'
   },
   geo_thick_var_amp: {
     category: 'shape',
@@ -131,22 +131,22 @@ export const PARAM_DEFINITIONS = {
     label: 'Dough Air Blisters (Count)',
     type: 'slider',
     min: 0,
-    max: 25,
+    max: 40,
     step: 1,
-    default: 5,
+    default: 6,
     unit: 'pockets',
-    description: 'Number of raised baked air blisters on dough'
+    description: 'Number of raised baked air blisters on dough and exposed cutaway cavities'
   },
   geo_air_pockets_size: {
     category: 'shape',
     label: 'Dough Air Blisters (Size)',
     type: 'slider',
     min: 5.0,
-    max: 30.0,
+    max: 45.0,
     step: 1.0,
-    default: 14.0,
+    default: 18.0,
     unit: 'mm',
-    description: 'Radius of blister bumps'
+    description: 'Radius and prominence of air blisters'
   },
   geo_donut_hole: {
     category: 'shape',
@@ -159,16 +159,27 @@ export const PARAM_DEFINITIONS = {
     unit: 'ratio',
     description: '0 = Solid pizza; >0 = Ring/Crown pizza void'
   },
-  geo_fractal: {
+  geo_fractal_reps: {
     category: 'shape',
-    label: 'Fractal Edge Fluting',
+    label: 'Fractal Repetitions',
     type: 'slider',
     min: 0,
-    max: 3,
+    max: 5,
     step: 1,
     default: 0,
-    unit: 'iter',
-    description: 'Recursive edge corner fluting'
+    unit: 'reps',
+    description: 'Number of recursive child pizzas budding along the perimeter'
+  },
+  geo_fractal_ratio: {
+    category: 'shape',
+    label: 'Fractal Size Ratio',
+    type: 'slider',
+    min: 0.20,
+    max: 0.70,
+    step: 0.05,
+    default: 0.40,
+    unit: 'ratio',
+    description: 'Scale ratio of child recursive pizzas'
   },
   geo_dough_color: {
     category: 'shape',
@@ -232,11 +243,11 @@ export const PARAM_DEFINITIONS = {
     label: 'Stuffing Core Diameter',
     type: 'slider',
     min: 4.0,
-    max: 22.0,
+    max: 28.0,
     step: 0.5,
     default: 12.0,
     unit: 'mm',
-    description: 'Diameter of internal filling tube'
+    description: 'Physical diameter of internal filling tube and cutaway core'
   },
   crust_stuff_type: {
     category: 'crust',
@@ -244,7 +255,7 @@ export const PARAM_DEFINITIONS = {
     type: 'dropdown',
     options: ['Mozzarella Cheese', 'Cheddar Cream', 'Ricotta & Herb', 'Garlic Butter', 'Spicy Sausage'],
     default: 'Mozzarella Cheese',
-    description: 'Material and cross-section filling appearance'
+    description: 'Material preset and cross-section filling appearance'
   },
   crust_stuff_color: {
     category: 'crust',
@@ -258,7 +269,7 @@ export const PARAM_DEFINITIONS = {
     label: 'Crust Blister Bubbles',
     type: 'slider',
     min: 0,
-    max: 20,
+    max: 25,
     step: 1,
     default: 8,
     unit: 'count',
@@ -269,7 +280,7 @@ export const PARAM_DEFINITIONS = {
     label: 'Blister Prominence',
     type: 'slider',
     min: 1.0,
-    max: 10.0,
+    max: 12.0,
     step: 0.5,
     default: 5.0,
     unit: 'mm',
@@ -284,9 +295,9 @@ export const PARAM_DEFINITIONS = {
     min: 0.0,
     max: 1.0,
     step: 0.02,
-    default: 0.60,
+    default: 0.65,
     unit: 'bake',
-    description: '0 = Pale raw dough, 0.6 = Golden baked, 1.0 = Well-done woodfired'
+    description: '0 = Pale raw dough, 0.65 = Golden baked, 1.0 = Well-done woodfired'
   },
   bake_char_dough: {
     category: 'bake',
@@ -339,7 +350,7 @@ export const PARAM_DEFINITIONS = {
     label: 'Sauce Layer Active',
     type: 'toggle',
     default: true,
-    description: 'Toggles the sauce base'
+    description: 'Toggles the volumetric sauce layer'
   },
   sauce_type: {
     category: 'sauce',
@@ -347,7 +358,7 @@ export const PARAM_DEFINITIONS = {
     type: 'dropdown',
     options: ['San Marzano Tomato', 'Spicy Arrabbiata', 'White Garlic Cream', 'Basil Pesto', 'Smoky BBQ', 'Truffle Cream', 'Custom'],
     default: 'San Marzano Tomato',
-    description: 'Sauce color, roughness, and chunk texture preset'
+    description: 'Sauce color, roughness, and texture preset'
   },
   sauce_color: {
     category: 'sauce',
@@ -372,22 +383,22 @@ export const PARAM_DEFINITIONS = {
     label: 'Sauce Layer Height',
     type: 'slider',
     min: 0.5,
-    max: 4.0,
+    max: 5.0,
     step: 0.1,
-    default: 1.4,
+    default: 1.6,
     unit: 'mm',
-    description: 'Physical thickness of the sauce layer'
+    description: 'Physical volumetric thickness and vertical cutaway wall height'
   },
   sauce_spread_patch: {
     category: 'sauce',
-    label: 'Spread Swirls / Patchiness',
+    label: 'Spread Swirls & Ladle Ridges',
     type: 'slider',
     min: 0.0,
     max: 1.0,
     step: 0.02,
-    default: 0.25,
+    default: 0.45,
     unit: 'swirl',
-    description: 'Artisanal ladle swirl pattern with slight thin spots'
+    description: 'Ladle spiral grooves with thin patchy spots exposing dough'
   },
   sauce_texture_rough: {
     category: 'sauce',
@@ -396,7 +407,7 @@ export const PARAM_DEFINITIONS = {
     min: 0.0,
     max: 1.0,
     step: 0.02,
-    default: 0.50,
+    default: 0.55,
     unit: 'chunks',
     description: 'Crushed tomato chunks, herbs, and seed bumpiness'
   },
@@ -407,56 +418,9 @@ export const PARAM_DEFINITIONS = {
     min: 0.0,
     max: 1.0,
     step: 0.02,
-    default: 0.75,
+    default: 0.80,
     unit: 'gloss',
     description: 'Wet specular sheen of fresh cooked sauce'
-  },
-
-  // --- Category: Seasoning & Garnishes ---
-  season_active: {
-    category: 'seasoning',
-    label: 'Seasoning Active',
-    type: 'toggle',
-    default: true,
-    description: 'Toggles micro-garnish scattering'
-  },
-  season_type: {
-    category: 'seasoning',
-    label: 'Seasoning Type',
-    type: 'dropdown',
-    options: ['Dried Oregano & Thyme', 'Crushed Red Chili Flakes', 'Grated Parmigiano-Reggiano', 'Garlic Herb Dust', 'EVOO Olive Oil Drizzle'],
-    default: 'Dried Oregano & Thyme',
-    description: 'Micro-flake type'
-  },
-  season_density: {
-    category: 'seasoning',
-    label: 'Seasoning Particle Count',
-    type: 'slider',
-    min: 0,
-    max: 300,
-    step: 10,
-    default: 100,
-    unit: 'flakes',
-    description: 'Number of seasoning particles scattered'
-  },
-  season_spread_mode: {
-    category: 'seasoning',
-    label: 'Scatter Distribution',
-    type: 'dropdown',
-    options: ['Uniform Scatter', 'Center Heavy', 'Crust Border', 'Spiral Swirl'],
-    default: 'Uniform Scatter',
-    description: 'Spatial distribution of seasoning'
-  },
-  season_randomness: {
-    category: 'seasoning',
-    label: 'Clustering Randomness',
-    type: 'slider',
-    min: 0.0,
-    max: 1.0,
-    step: 0.05,
-    default: 0.5,
-    unit: 'cluster',
-    description: 'Random clumpiness of seasoning'
   },
 
   // --- Category: Slicing Engine ---
@@ -480,7 +444,7 @@ export const PARAM_DEFINITIONS = {
     step: 1,
     default: 8,
     unit: 'slices',
-    description: 'Displays first K slices, revealing internal cross-sections for the missing gap'
+    description: 'Displays first K slices, revealing internal crumb cross-sections'
   },
   slice_pull_offset: {
     category: 'slice',
@@ -521,31 +485,42 @@ export const PARAM_DEFINITIONS = {
     min: 0.0,
     max: 1.0,
     step: 0.05,
-    default: 0.40,
+    default: 0.50,
     unit: 'grease',
-    description: 'Translucent oil saturation under the pizza'
+    description: 'Translucent oil saturation and grease rings on peel, plate, pan, and box'
   },
   prop_crumbs: {
     category: 'props',
     label: 'Table Crust Crumbs',
     type: 'slider',
     min: 0,
-    max: 40,
+    max: 150,
     step: 1,
-    default: 12,
+    default: 25,
     unit: 'crumbs',
-    description: 'Toasted crust crumbs scattered around the tray'
+    description: 'Toasted crust crumbs and charred specks scattered around tray'
   },
   fx_steam_intensity: {
     category: 'props',
     label: 'Hot Steam Vapor',
     type: 'slider',
     min: 0.0,
-    max: 1.0,
+    max: 2.5,
     step: 0.05,
-    default: 0.35,
+    default: 0.50,
     unit: 'steam',
-    description: 'Animated rising thermal steam haze'
+    description: 'Dense billowing hot thermal steam haze (Extended range)'
+  },
+  prop_box_lid_angle: {
+    category: 'props',
+    label: 'Box Lid Open Angle',
+    type: 'slider',
+    min: 0,
+    max: 130,
+    step: 1,
+    default: 115,
+    unit: '°',
+    description: 'Opening tilt angle of the cardboard pizza box lid'
   }
 };
 
@@ -555,7 +530,7 @@ export const CATEGORIES = [
   { id: 'bake', name: 'Bake & Cooking', icon: '🔥' },
   { id: 'sauce', name: 'Sauces & Spreads', icon: '🍅' },
   { id: 'toppings', name: 'Toppings Studio', icon: '🧀' },
-  { id: 'seasoning', name: 'Seasonings & Oils', icon: '🌿' },
+  { id: 'seasoning', name: 'Seasonings Studio', icon: '🌿' },
   { id: 'slice', name: 'Slicing & Cuts', icon: '🔪' },
   { id: 'props', name: 'Plates, Box & Steam', icon: '📦' }
 ];
@@ -573,4 +548,13 @@ export const AVAILABLE_TOPPINGS = [
   { id: 'pineapple', name: 'Golden Pineapple Chunks', defaultCount: 14, color: '#FFD700' },
   { id: 'sausage', name: 'Italian Sausage Crumbles', defaultCount: 20, color: '#6E2C1A' },
   { id: 'bacon', name: 'Crispy Bacon Bits', defaultCount: 25, color: '#8B2500' }
+];
+
+export const AVAILABLE_SEASONINGS = [
+  { id: 'oregano', name: 'Dried Oregano & Thyme', defaultDensity: 120, icon: '🌿' },
+  { id: 'chili', name: 'Crushed Red Chili Flakes', defaultDensity: 90, icon: '🌶️' },
+  { id: 'parmigiano', name: 'Grated Parmigiano-Reggiano', defaultDensity: 140, icon: '🧀' },
+  { id: 'garlic_herb', name: 'Garlic Herb Dust', defaultDensity: 110, icon: '🧄' },
+  { id: 'evoo', name: 'EVOO Olive Oil Drizzle', defaultDensity: 60, icon: '🫒' },
+  { id: 'black_pepper', name: 'Cracked Black Pepper', defaultDensity: 80, icon: '⚫' }
 ];

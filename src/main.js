@@ -1,7 +1,7 @@
 /**
  * Main Bootstrap & Application Coordinator for PizzaMaker 3D.
  * Connects Three.js WebGL Rendering, OrbitControls, Raycasting,
- * Generator Engines, and UI Managers.
+ * Generator Engines, and UI Managers with requestAnimationFrame throttled updates.
  */
 
 import * as THREE from 'three';
@@ -23,23 +23,32 @@ export class PizzaMakerApp {
     this.canvas = document.getElementById('webglCanvas');
     this.params = {};
     this.toppings = [];
+    this.seasonings = [];
     this.clock = new THREE.Clock();
     this.isAutoRotating = false;
 
     // Raycasting
     this.raycaster = new THREE.Raycaster();
     this.mouse = new THREE.Vector2();
-    this.hoveredSlice = null;
+
+    // rAF Throttle / Batching flag
+    this.pendingRebuild = false;
+    this.pendingToppings = false;
 
     // Initialize Default Parameters
     for (const [key, def] of Object.entries(PARAM_DEFINITIONS)) {
       this.params[key] = def.default;
     }
 
-    // Default Neapolitan Toppings
+    // Default Neapolitan Toppings & Seasonings
     this.toppings = [
       { type: 'mozzarella_pearls', count: 9, scale: 1.1 },
       { type: 'basil', count: 8, scale: 1.1 }
+    ];
+
+    this.seasonings = [
+      { type: 'evoo', density: 70, spreadMode: 'Spiral Swirl', randomness: 0.4 },
+      { type: 'oregano', density: 40, spreadMode: 'Uniform Scatter', randomness: 0.5 }
     ];
 
     this.initThree();
@@ -85,7 +94,7 @@ export class PizzaMakerApp {
     this.controls = new OrbitControls(this.camera, this.renderer.domElement);
     this.controls.enableDamping = true;
     this.controls.dampingFactor = 0.05;
-    this.controls.maxPolarAngle = Math.PI / 2 - 0.05; // Don't go below floor
+    this.controls.maxPolarAngle = Math.PI / 2 - 0.05;
     this.controls.minDistance = 0.8;
     this.controls.maxDistance = 8.0;
     this.controls.target.set(0, 0.1, 0);
@@ -104,11 +113,9 @@ export class PizzaMakerApp {
   }
 
   setupLighting() {
-    // Ambient Warm Fill
     const ambientLight = new THREE.AmbientLight(0xFFEEDD, 0.7);
     this.scene.add(ambientLight);
 
-    // Main Key Light
     const keyLight = new THREE.DirectionalLight(0xFFFAF0, 2.2);
     keyLight.position.set(3, 5, 3);
     keyLight.castShadow = true;
@@ -123,12 +130,10 @@ export class PizzaMakerApp {
     keyLight.shadow.bias = -0.0005;
     this.scene.add(keyLight);
 
-    // Cool Rim Light
     const rimLight = new THREE.DirectionalLight(0xAACCFF, 1.2);
     rimLight.position.set(-3, 3, -3);
     this.scene.add(rimLight);
 
-    // Warm Oven Glow Side Light
     const ovenLight = new THREE.PointLight(0xFF6600, 1.0, 6);
     ovenLight.position.set(-2, 1.5, 2);
     this.scene.add(ovenLight);
@@ -152,7 +157,6 @@ export class PizzaMakerApp {
     this.uiManager = new UIManager(this);
     this.uiManager.init();
 
-    // Default preset
     this.presetManager.loadPreset('neapolitan');
   }
 
@@ -164,7 +168,7 @@ export class PizzaMakerApp {
     this.toppingsEngine.scatterToppings(this.toppings, this.params);
 
     // 3. Build Seasonings
-    this.seasoningEngine.scatterSeasonings(this.params);
+    this.seasoningEngine.scatterSeasonings(this.seasonings, this.params);
 
     // 4. Build Props & Steam
     this.propsEngine.updateProps(this.params);
@@ -172,27 +176,45 @@ export class PizzaMakerApp {
 
   rebuildToppings() {
     this.toppingsEngine.scatterToppings(this.toppings, this.params);
-    this.seasoningEngine.scatterSeasonings(this.params);
+    this.seasoningEngine.scatterSeasonings(this.seasonings, this.params);
   }
 
-  updateParameters(newParams, newToppings) {
+  scheduleRebuild() {
+    if (this.pendingRebuild) return;
+    this.pendingRebuild = true;
+    requestAnimationFrame(() => {
+      this.rebuildFullPizza();
+      this.pendingRebuild = false;
+    });
+  }
+
+  scheduleToppingsRebuild() {
+    if (this.pendingToppings) return;
+    this.pendingToppings = true;
+    requestAnimationFrame(() => {
+      this.rebuildToppings();
+      this.pendingToppings = false;
+    });
+  }
+
+  updateParameters(newParams, newToppings, newSeasonings) {
     Object.assign(this.params, newParams);
     if (newToppings) this.toppings = JSON.parse(JSON.stringify(newToppings));
+    if (newSeasonings) this.seasonings = JSON.parse(JSON.stringify(newSeasonings));
     this.rebuildFullPizza();
   }
 
   updateSingleParameter(key, value) {
     this.params[key] = value;
 
-    // Fast updates vs full rebuild
     if (key === 'slice_pull_offset' || key === 'slice_pull_index' || key === 'slice_visible_count') {
       this.updateSliceTransforms();
     } else if (key.startsWith('prop_') || key.startsWith('fx_')) {
       this.propsEngine.updateProps(this.params);
     } else if (key.startsWith('season_')) {
-      this.seasoningEngine.scatterSeasonings(this.params);
+      this.scheduleToppingsRebuild();
     } else {
-      this.rebuildFullPizza();
+      this.scheduleRebuild();
     }
   }
 
@@ -218,13 +240,25 @@ export class PizzaMakerApp {
 
   addToppingLayer(type = 'pepperoni', count = 16, scale = 1.0) {
     this.toppings.push({ type, count, scale });
-    this.rebuildToppings();
+    this.scheduleToppingsRebuild();
   }
 
   removeToppingLayer(index) {
     if (index >= 0 && index < this.toppings.length) {
       this.toppings.splice(index, 1);
-      this.rebuildToppings();
+      this.scheduleToppingsRebuild();
+    }
+  }
+
+  addSeasoningLayer(type = 'oregano', density = 100, spreadMode = 'Uniform Scatter', randomness = 0.5) {
+    this.seasonings.push({ type, density, spreadMode, randomness });
+    this.scheduleToppingsRebuild();
+  }
+
+  removeSeasoningLayer(index) {
+    if (index >= 0 && index < this.seasonings.length) {
+      this.seasonings.splice(index, 1);
+      this.scheduleToppingsRebuild();
     }
   }
 
@@ -303,7 +337,8 @@ export class PizzaMakerApp {
       name: 'Custom Artisanal Pizza',
       date: new Date().toISOString(),
       parameters: this.params,
-      toppings: this.toppings
+      toppings: this.toppings,
+      seasonings: this.seasonings
     };
     navigator.clipboard.writeText(JSON.stringify(recipe, null, 2))
       .then(() => this.showToast('📋 Recipe JSON copied to clipboard!'))
@@ -341,7 +376,6 @@ export class PizzaMakerApp {
       const intersects = this.raycaster.intersectObjects(this.pizzaGenerator.rootGroup.children, true);
 
       if (intersects.length > 0) {
-        // Find which slice wedge was clicked
         let obj = intersects[0].object;
         while (obj && !obj.name.startsWith('SliceWedge_') && obj.parent) {
           obj = obj.parent;
@@ -350,11 +384,10 @@ export class PizzaMakerApp {
         if (obj && obj.name.startsWith('SliceWedge_')) {
           const sliceNum = parseInt(obj.name.replace('SliceWedge_', ''), 10);
           this.params.slice_pull_index = sliceNum;
-          // Toggle pull offset if clicked
           this.params.slice_pull_offset = this.params.slice_pull_offset > 0.1 ? 0 : 3.0;
 
           this.updateSliceTransforms();
-          this.uiManager.syncUIValues(this.params, this.toppings);
+          this.uiManager.syncUIValues(this.params, this.toppings, this.seasonings);
           this.showToast(`🍕 Selected Slice #${sliceNum} (${this.params.slice_pull_offset > 0 ? 'Pulled Out' : 'Retracted'})`);
         }
       }
