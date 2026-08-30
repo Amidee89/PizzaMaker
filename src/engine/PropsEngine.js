@@ -176,10 +176,40 @@ export class PropsEngine {
     const crumbCount = params.prop_crumbs !== undefined ? params.prop_crumbs : 25;
 
     const baseRadius = (params.geo_radius || 30.0) * 0.05;
-    const propSize = baseRadius * 1.35;
+    const fractalReps = Math.max(0, Math.min(6, Math.round(params.geo_fractal_reps || 0)));
+    const fractalRatio = Math.max(0.15, Math.min(0.85, params.geo_fractal_ratio || 0.40));
+    const fractalAngleDeg = params.geo_fractal_angle !== undefined ? params.geo_fractal_angle : 0;
+    const fractalAngleRad = (fractalAngleDeg * Math.PI) / 180;
+
+    // Compute bounding box of all fractal child centers
+    let minX = -baseRadius, maxX = baseRadius;
+    let minZ = -baseRadius, maxZ = baseRadius;
+    let cx = 0, cz = 0, heading = 0;
+    let currScale = 1.0;
+    let prevR = baseRadius;
+    for (let k = 1; k <= fractalReps; k++) {
+      currScale *= fractalRatio;
+      const childR = baseRadius * currScale;
+      const gap = prevR + childR * 0.96;
+      cx += gap * Math.cos(heading);
+      cz += gap * Math.sin(heading);
+      minX = Math.min(minX, cx - childR);
+      maxX = Math.max(maxX, cx + childR);
+      minZ = Math.min(minZ, cz - childR);
+      maxZ = Math.max(maxZ, cz + childR);
+      prevR = childR;
+      heading += fractalAngleRad;
+    }
+
+    const centerShiftX = (minX + maxX) / 2;
+    const centerShiftZ = (minZ + maxZ) / 2;
+    const spanX = maxX - minX;
+    const spanZ = maxZ - minZ;
+    const propSize = Math.max(spanX, spanZ) * 0.65 + 0.05;
 
     if (containerType === 'Rustic Wooden Peel') {
       const peelGroup = new THREE.Group();
+      peelGroup.position.set(centerShiftX, 0, centerShiftZ);
       const woodTex = this.generateWoodTexture(greaseStains);
       const woodMat = new THREE.MeshStandardMaterial({
         map: woodTex,
@@ -202,6 +232,7 @@ export class PropsEngine {
       this.rootGroup.add(peelGroup);
     } else if (containerType === 'Cardboard Delivery Box') {
       const boxGroup = new THREE.Group();
+      boxGroup.position.set(centerShiftX, 0, centerShiftZ);
       const cardTex = this.generateCardboardTexture(greaseStains);
       const cardMat = new THREE.MeshStandardMaterial({
         map: cardTex,
@@ -247,7 +278,7 @@ export class PropsEngine {
       });
       const plateGeom = new THREE.CylinderGeometry(propSize * 1.05, propSize * 0.85, 0.04, 36);
       const plate = new THREE.Mesh(plateGeom, plateMat);
-      plate.position.y = -0.025;
+      plate.position.set(centerShiftX, -0.025, centerShiftZ);
       plate.receiveShadow = true;
       this.rootGroup.add(plate);
     } else if (containerType === 'Steel Diner Pan') {
@@ -259,7 +290,7 @@ export class PropsEngine {
       });
       const panGeom = new THREE.CylinderGeometry(propSize * 1.02, propSize * 0.95, 0.06, 36);
       const pan = new THREE.Mesh(panGeom, steelMat);
-      pan.position.y = -0.035;
+      pan.position.set(centerShiftX, -0.035, centerShiftZ);
       pan.receiveShadow = true;
       this.rootGroup.add(pan);
     } else if (containerType === 'Oven Wire Rack') {
@@ -269,6 +300,7 @@ export class PropsEngine {
         metalness: 0.9
       });
       const rackGroup = new THREE.Group();
+      rackGroup.position.set(centerShiftX, 0, centerShiftZ);
       const numWires = 18;
       for (let i = 0; i < numWires; i++) {
         const wireZ = ((i / (numWires - 1)) - 0.5) * propSize * 2.0;
@@ -285,17 +317,17 @@ export class PropsEngine {
       const crumbGeom = new THREE.DodecahedronGeometry(0.010, 0);
       const crumbMat1 = new THREE.MeshStandardMaterial({ color: 0xD4A054, roughness: 0.9 });
       const crumbMat2 = new THREE.MeshStandardMaterial({ color: 0x6E3E1A, roughness: 0.9 });
-      const crumbMat3 = new THREE.MeshStandardMaterial({ color: 0x24160E, roughness: 0.85 }); // charred speck
+      const crumbMat3 = new THREE.MeshStandardMaterial({ color: 0x24160E, roughness: 0.85 });
 
       for (let i = 0; i < crumbCount; i++) {
         const angle = (i * 47.3 * Math.PI) / 180;
-        const dist = baseRadius * (1.02 + (i % 7) * 0.06);
+        const dist = propSize * (0.80 + (i % 7) * 0.04);
         const sizeScale = 0.5 + (i % 5) * 0.25;
 
         const mat = i % 4 === 0 ? crumbMat3 : (i % 2 === 0 ? crumbMat2 : crumbMat1);
         const crumb = new THREE.Mesh(crumbGeom, mat);
         crumb.scale.set(sizeScale, sizeScale * 0.7, sizeScale);
-        crumb.position.set(dist * Math.cos(angle), -0.005, dist * Math.sin(angle));
+        crumb.position.set(centerShiftX + dist * Math.cos(angle), -0.005, centerShiftZ + dist * Math.sin(angle));
         crumb.rotation.set(Math.random() * 3, Math.random() * 3, Math.random() * 3);
         crumb.castShadow = true;
         this.rootGroup.add(crumb);

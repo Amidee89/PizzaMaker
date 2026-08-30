@@ -494,57 +494,67 @@ export class ToppingsEngine {
 
     if (!toppingsConfig || toppingsConfig.length === 0) return;
 
+    // Group slices by fractal level
+    const levelMap = new Map();
+    for (const slice of slices) {
+      const lvl = slice.level !== undefined ? slice.level : 0;
+      if (!levelMap.has(lvl)) levelMap.set(lvl, []);
+      levelMap.get(lvl).push(slice);
+    }
+
     const baseRadius = (params.geo_radius || 30.0) * 0.05;
     const donutHole = params.geo_donut_hole || 0.0;
     const innerR = donutHole > 0.01 ? baseRadius * donutHole : 0.0;
     const sauceMargin = ((params.sauce_margin || 16.0) * 0.05) / 1.5;
 
-    for (let layerIdx = 0; layerIdx < toppingsConfig.length; layerIdx++) {
-      const toppingLayer = toppingsConfig[layerIdx];
-      const type = toppingLayer.type;
-      const count = toppingLayer.count || 0;
-      const userScale = toppingLayer.scale || 1.0;
-      if (count <= 0) continue;
+    for (const [level, levelSlices] of levelMap.entries()) {
+      for (let layerIdx = 0; layerIdx < toppingsConfig.length; layerIdx++) {
+        const toppingLayer = toppingsConfig[layerIdx];
+        const type = toppingLayer.type;
+        const count = toppingLayer.count || 0;
+        const userScale = toppingLayer.scale || 1.0;
+        if (count <= 0) continue;
 
-      let layerYOffset = 0.005;
-      if (type === 'pepperoni') layerYOffset = 0.018;
-      if (type === 'basil') layerYOffset = 0.020;
-      if (type === 'sausage' || type === 'pineapple') layerYOffset = 0.014;
+        let layerYOffset = 0.005;
+        if (type === 'pepperoni') layerYOffset = 0.018;
+        if (type === 'basil') layerYOffset = 0.020;
+        if (type === 'sausage' || type === 'pineapple') layerYOffset = 0.014;
 
-      const layerAngleOffset = layerIdx * 1.61803398875 * Math.PI;
+        const layerAngleOffset = layerIdx * 1.61803398875 * Math.PI;
 
-      for (let i = 0; i < count; i++) {
-        const angle = layerAngleOffset + (i * 137.508 * Math.PI) / 180 + Math.sin(i * 3.7 + layerIdx) * 0.15;
-        const normDist = 0.22 + 0.70 * Math.sqrt((i + 0.5) / count);
-        const normAngle = ((angle % (Math.PI * 2)) + Math.PI * 2) % (Math.PI * 2);
+        for (let i = 0; i < count; i++) {
+          const angle = layerAngleOffset + (i * 137.508 * Math.PI) / 180 + Math.sin(i * 3.7 + layerIdx) * 0.15;
+          const normDist = 0.22 + 0.70 * Math.sqrt((i + 0.5) / count);
+          const normAngle = ((angle % (Math.PI * 2)) + Math.PI * 2) % (Math.PI * 2);
 
-        const outerR = this.pizzaGenerator.computeRadiusAtAngle(normAngle, params);
-        const maxR = Math.max(innerR + 0.15, outerR - sauceMargin - 0.08);
-        const r = innerR + normDist * (maxR - innerR);
+          const outerR = this.pizzaGenerator.computeRadiusAtAngle(normAngle, params);
+          const maxR = Math.max(innerR + 0.15, outerR - sauceMargin - 0.08);
+          const r = innerR + normDist * (maxR - innerR);
 
-        const x = r * Math.cos(normAngle);
-        const z = r * Math.sin(normAngle);
+          const x = r * Math.cos(normAngle);
+          const z = r * Math.sin(normAngle);
 
-        const { yTop } = this.pizzaGenerator.computeSurfaceProfile(r, normAngle, outerR, innerR, params);
+          const { yTop } = this.pizzaGenerator.computeSurfaceProfile(r, normAngle, outerR, innerR, params);
 
-        let targetSlice = null;
-        for (const slice of slices) {
-          if (normAngle >= slice.angleStart && normAngle < slice.angleEnd) {
-            targetSlice = slice;
-            break;
+          let targetSlice = null;
+          for (const slice of levelSlices) {
+            if (normAngle >= slice.angleStart && normAngle < slice.angleEnd) {
+              targetSlice = slice;
+              break;
+            }
           }
+          if (!targetSlice) targetSlice = levelSlices[0];
+
+          const scaleJitter = userScale * (0.92 + (i % 4) * 0.05);
+          const mesh = this.createToppingMesh(type, scaleJitter);
+
+          mesh.position.set(x, yTop + layerYOffset, z);
+          mesh.rotation.y = normAngle + ((i * 47) % 360) * (Math.PI / 180);
+          mesh.rotation.x = ((i % 3) - 1) * 0.04;
+          mesh.rotation.z = (((i + 1) % 3) - 1) * 0.04;
+
+          targetSlice.toppingsGroup.add(mesh);
         }
-        if (!targetSlice) targetSlice = slices[0];
-
-        const scaleJitter = userScale * (0.92 + (i % 4) * 0.05);
-        const mesh = this.createToppingMesh(type, scaleJitter);
-
-        mesh.position.set(x, yTop + layerYOffset, z);
-        mesh.rotation.y = normAngle + ((i * 47) % 360) * (Math.PI / 180);
-        mesh.rotation.x = ((i % 3) - 1) * 0.04;
-        mesh.rotation.z = (((i + 1) % 3) - 1) * 0.04;
-
-        targetSlice.toppingsGroup.add(mesh);
       }
     }
   }

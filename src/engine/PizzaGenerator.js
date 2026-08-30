@@ -3,7 +3,7 @@
  * Constructs watertight, topologically closed slices with internal crumb cross-sections,
  * multi-sided polygon interpolation, stellation, ovalness, triple dome/bowl warping,
  * air blister pockets, volumetric sauce with vertical cut walls, stuffed crust cores,
- * and recursive fractal pizza satellite generation.
+ * and recursive fractal chain pizza generation.
  */
 
 import * as THREE from 'three';
@@ -138,7 +138,7 @@ export class PizzaGenerator {
       noiseH = this.noise.noise2D(x * thickVarFreq, z * thickVarFreq) * thickVarAmp * baseThickness * 0.5;
     }
 
-    // 4. Air Blister Bumps (Significantly boosted visibility & height)
+    // 4. Air Blister Bumps
     let blisterH = 0;
     const activeDoughBlisters = params.geo_air_pockets_count || 0;
     const bSizeSlider = params.geo_air_pockets_size || 18.0;
@@ -187,6 +187,46 @@ export class PizzaGenerator {
     this.slices = [];
 
     const materials = this.materialManager.getMaterials(params);
+    const fractalReps = Math.max(0, Math.min(6, Math.round(params.geo_fractal_reps || 0)));
+    const fractalRatio = Math.max(0.15, Math.min(0.85, params.geo_fractal_ratio || 0.40));
+
+    // 1. Build Level 0 (Main Parent Pizza)
+    this.buildPizzaHierarchyLevel(0, 0, 0, 1.0, params, materials);
+
+    // 2. Build Recursive Fractal Chain — each child attaches to the previous
+    //    at an accumulating angle offset, creating spirals when angle ≠ 0°
+    const fractalAngleDeg = params.geo_fractal_angle !== undefined ? params.geo_fractal_angle : 0;
+    const fractalAngleRad = (fractalAngleDeg * Math.PI) / 180;
+
+    let currentX = 0;
+    let currentZ = 0;
+    let currentHeading = 0; // direction the chain extends, in radians
+    let currentScale = 1.0;
+    const baseR0 = this.computeRadiusAtAngle(0, params);
+    let prevRadius = baseR0;
+
+    for (let k = 1; k <= fractalReps; k++) {
+      const childScale = currentScale * fractalRatio;
+      const childRadius = baseR0 * childScale;
+      const gap = prevRadius + childRadius * 0.96;
+
+      // Advance position along the current heading
+      currentX += gap * Math.cos(currentHeading);
+      currentZ += gap * Math.sin(currentHeading);
+
+      prevRadius = childRadius;
+      currentScale = childScale;
+
+      this.buildPizzaHierarchyLevel(k, currentX, currentZ, childScale, params, materials);
+
+      // Rotate heading for the next iteration
+      currentHeading += fractalAngleRad;
+    }
+
+    return this.rootGroup;
+  }
+
+  buildPizzaHierarchyLevel(level, originX, originZ, scale, params, materials) {
     const totalSlices = Math.max(1, Math.min(16, Math.round(params.slice_total || 8)));
     const visibleSlices = Math.max(1, Math.min(totalSlices, Math.round(params.slice_visible_count || totalSlices)));
     const pullOffset = (params.slice_pull_offset || 0.0) * 0.05;
@@ -196,8 +236,13 @@ export class PizzaGenerator {
     const baseRadius = (params.geo_radius || 30.0) * 0.05;
     const innerRadius = donutHoleRatio > 0.01 ? baseRadius * donutHoleRatio : 0.0;
 
-    const numRings = 24;
-    const numAngleSteps = Math.max(12, Math.round(48 / totalSlices));
+    const numRings = Math.max(12, Math.round(24 * Math.max(0.5, scale)));
+    const numAngleSteps = Math.max(8, Math.round((48 / totalSlices) * Math.max(0.5, scale)));
+
+    const levelGroup = new THREE.Group();
+    levelGroup.name = `PizzaLevel_${level}`;
+    levelGroup.position.set(originX, 0, originZ);
+    levelGroup.scale.set(scale, scale, scale);
 
     for (let s = 0; s < totalSlices; s++) {
       const thetaStart = (s * 2 * Math.PI) / totalSlices;
@@ -205,7 +250,7 @@ export class PizzaGenerator {
       const midTheta = (thetaStart + thetaEnd) / 2;
 
       const wedgeGroup = new THREE.Group();
-      wedgeGroup.name = `SliceWedge_${s + 1}`;
+      wedgeGroup.name = `SliceWedge_L${level}_${s + 1}`;
 
       // 1. Dough Mesh
       const wedgeMesh = this.buildWedgeMesh(
@@ -221,7 +266,7 @@ export class PizzaGenerator {
       wedgeMesh.receiveShadow = true;
       wedgeGroup.add(wedgeMesh);
 
-      // 2. Stuffed Crust Core Mesh (Physical 3D Core)
+      // 2. Stuffed Crust Core
       if (params.crust_stuffed) {
         const coreMesh = this.buildStuffedCoreMesh(
           thetaStart,
@@ -236,7 +281,7 @@ export class PizzaGenerator {
         }
       }
 
-      // 3. Volumetric Sauce Mesh with Vertical Cut Walls
+      // 3. Volumetric Sauce Layer
       if (params.sauce_enabled) {
         const sauceMesh = this.buildSauceMesh(
           thetaStart,
@@ -262,9 +307,17 @@ export class PizzaGenerator {
       const isVisible = s < visibleSlices;
       wedgeGroup.visible = isVisible;
 
-      this.rootGroup.add(wedgeGroup);
+      levelGroup.add(wedgeGroup);
+
+      const toppingsGroup = new THREE.Group();
+      toppingsGroup.name = `Toppings_L${level}_${s + 1}`;
+      wedgeGroup.add(toppingsGroup);
 
       this.slices.push({
+        level,
+        scale,
+        originX,
+        originZ,
         wedgeGroup,
         wedgeMesh,
         sliceIndex: s,
@@ -274,19 +327,11 @@ export class PizzaGenerator {
         midAngle: midTheta,
         isVisible,
         isPulled: s === pullIndex && pullOffset > 0.001,
-        toppingsGroup: new THREE.Group()
+        toppingsGroup
       });
-
-      wedgeGroup.add(this.slices[s].toppingsGroup);
     }
 
-    // 4. Recursive Fractal Satellite Pizzas
-    const fractalReps = params.geo_fractal_reps || 0;
-    if (fractalReps > 0) {
-      this.buildFractalSatellites(params, materials, fractalReps);
-    }
-
-    return this.rootGroup;
+    this.rootGroup.add(levelGroup);
   }
 
   buildWedgeMesh(thetaStart, thetaEnd, innerR, numRings, numAngleSteps, params, materials) {
@@ -480,7 +525,7 @@ export class PizzaGenerator {
    */
   buildStuffedCoreMesh(thetaStart, thetaEnd, numAngleSteps, params, stuffMaterial) {
     const stuffAmount = params.crust_stuff_amount !== undefined ? params.crust_stuff_amount : 12.0;
-    const coreRadius = (stuffAmount / 28.0) * 0.024 + 0.008; // 8mm to 32mm in 3D units
+    const coreRadius = (stuffAmount / 28.0) * 0.024 + 0.008;
 
     const tubeGeom = new THREE.BufferGeometry();
     const positions = [];
@@ -503,9 +548,6 @@ export class PizzaGenerator {
       const cx = coreR * Math.cos(theta);
       const cz = coreR * Math.sin(theta);
 
-      // Tangent, Normal, and Binormal
-      const tangentX = -Math.sin(theta);
-      const tangentZ = Math.cos(theta);
       const normalX = Math.cos(theta);
       const normalZ = Math.sin(theta);
 
@@ -587,8 +629,8 @@ export class PizzaGenerator {
       for (let i = 0; i < sauceRings; i++) {
         const i0 = topStart + j * ringPitch + i;
         const i1 = topStart + j * ringPitch + (i + 1);
-        const i2 = topStart + (j + 1) * ringPitch + i;
-        const i3 = topStart + (j + 1) * ringPitch + (i + 1);
+        const i2 = (j + 1) * ringPitch + i;
+        const i3 = (j + 1) * ringPitch + (i + 1);
 
         indices.push(i0, i2, i1);
         indices.push(i1, i2, i3);
@@ -669,62 +711,6 @@ export class PizzaGenerator {
 
     const mesh = new THREE.Mesh(geometry, sauceMaterial);
     return mesh;
-  }
-
-  /**
-   * Generates Recursive Fractal Child Pizzas attached along perimeter
-   */
-  buildFractalSatellites(params, materials, repetitions) {
-    const sides = Math.max(3, Math.min(8, Math.round(params.geo_sides || 32)));
-    const ratio = params.geo_fractal_ratio || 0.40;
-    const baseRadius = (params.geo_radius || 30.0) * 0.05;
-
-    const numSatellites = Math.min(repetitions, sides);
-    for (let s = 0; s < numSatellites; s++) {
-      const angle = (s * 2 * Math.PI) / numSatellites;
-      const parentR = this.computeRadiusAtAngle(angle, params);
-      const childScale = Math.pow(ratio, 1.0);
-      const childRadius = parentR * childScale;
-      const distance = parentR + childRadius * 0.90;
-
-      const satGroup = new THREE.Group();
-      satGroup.name = `FractalSatellite_${s + 1}`;
-      satGroup.position.set(distance * Math.cos(angle), 0, distance * Math.sin(angle));
-      satGroup.scale.set(childScale, childScale, childScale);
-
-      // Create mini child pizza wedge cluster
-      const childParams = Object.assign({}, params, {
-        geo_radius: (params.geo_radius || 30.0) * ratio,
-        geo_fractal_reps: 0 // prevent infinite recursion
-      });
-
-      const childWedge = this.buildWedgeMesh(
-        0,
-        Math.PI * 2,
-        0,
-        14,
-        24,
-        childParams,
-        materials
-      );
-      childWedge.castShadow = true;
-      satGroup.add(childWedge);
-
-      if (params.sauce_enabled) {
-        const childSauce = this.buildSauceMesh(
-          0,
-          Math.PI * 2,
-          0,
-          10,
-          24,
-          childParams,
-          materials.sauce
-        );
-        if (childSauce) satGroup.add(childSauce);
-      }
-
-      this.rootGroup.add(satGroup);
-    }
   }
 }
 

@@ -224,11 +224,16 @@ export class PizzaMakerApp {
     const pullOffset = (this.params.slice_pull_offset || 0) * 0.05;
     const pullIndex = (this.params.slice_pull_index || 1) - 1;
 
-    for (let s = 0; s < this.pizzaGenerator.slices.length; s++) {
-      const slice = this.pizzaGenerator.slices[s];
-      slice.wedgeGroup.visible = s < visibleSlices;
+    for (const slice of this.pizzaGenerator.slices) {
+      // Use the per-level sliceIndex, not the flat array position
+      const si = slice.sliceIndex;
+      slice.wedgeGroup.visible = si < visibleSlices;
 
-      if (s === pullIndex && pullOffset > 0.001) {
+      if (si === pullIndex && pullOffset > 0.001) {
+        const scale = slice.scale || 1.0;
+        const ox = slice.originX || 0;
+        const oz = slice.originZ || 0;
+        // Pull offset is in the parent group's local space, so no origin shift needed
         slice.wedgeGroup.position.x = pullOffset * Math.cos(slice.midAngle);
         slice.wedgeGroup.position.z = pullOffset * Math.sin(slice.midAngle);
       } else {

@@ -181,6 +181,17 @@ export const PARAM_DEFINITIONS = {
     unit: 'ratio',
     description: 'Scale ratio of child recursive pizzas'
   },
+  geo_fractal_angle: {
+    category: 'shape',
+    label: 'Fractal Chain Angle',
+    type: 'slider',
+    min: -180,
+    max: 180,
+    step: 1,
+    default: 0,
+    unit: '°',
+    description: 'Angle offset between each fractal repetition — 0° = straight line, ±30–60° = classic golden spiral'
+  },
   geo_dough_color: {
     category: 'shape',
     label: 'Dough Base Color',

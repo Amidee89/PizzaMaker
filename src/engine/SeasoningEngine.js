@@ -86,88 +86,97 @@ export class SeasoningEngine {
       });
     }
 
+    // Group slices by fractal level
+    const levelMap = new Map();
+    for (const slice of slices) {
+      const lvl = slice.level !== undefined ? slice.level : 0;
+      if (!levelMap.has(lvl)) levelMap.set(lvl, []);
+      levelMap.get(lvl).push(slice);
+    }
+
     const baseRadius = (params.geo_radius || 30.0) * 0.05;
     const donutHole = params.geo_donut_hole || 0.0;
     const innerR = donutHole > 0.01 ? baseRadius * donutHole : 0.0;
 
-    for (const layer of layers) {
-      const type = layer.type || 'oregano';
-      const density = Math.min(300, Math.max(0, Math.round(layer.density !== undefined ? layer.density : 100)));
-      if (density <= 0) continue;
+    for (const [level, levelSlices] of levelMap.entries()) {
+      for (const layer of layers) {
+        const type = layer.type || 'oregano';
+        const density = Math.min(300, Math.max(0, Math.round(layer.density !== undefined ? layer.density : 100)));
+        if (density <= 0) continue;
 
-      const spreadMode = layer.spreadMode || 'Uniform Scatter';
-      const randomness = layer.randomness !== undefined ? layer.randomness : 0.5;
+        const spreadMode = layer.spreadMode || 'Uniform Scatter';
+        const randomness = layer.randomness !== undefined ? layer.randomness : 0.5;
 
-      const geom = this.getGeomForType(type);
-      const mat = this.getMaterialForType(type);
+        const geom = this.getGeomForType(type);
+        const mat = this.getMaterialForType(type);
 
-      // Distribute instances per slice to maintain sector clipping on pull
-      const perSliceInstances = Array.from({ length: slices.length }, () => []);
+        const perSliceInstances = Array.from({ length: levelSlices.length }, () => []);
 
-      for (let i = 0; i < density; i++) {
-        let angle = (i * 137.5 * Math.PI) / 180;
-        let normR = Math.sqrt((i + 0.5) / density);
+        for (let i = 0; i < density; i++) {
+          let angle = (i * 137.5 * Math.PI) / 180;
+          let normR = Math.sqrt((i + 0.5) / density);
 
-        if (spreadMode === 'Center Heavy') {
-          normR = Math.pow(normR, 1.8) * 0.7;
-        } else if (spreadMode === 'Crust Border') {
-          normR = 0.75 + normR * 0.22;
-        } else if (spreadMode === 'Spiral Swirl') {
-          angle = (i * 0.12) * Math.PI * 2;
-          normR = (i / density) * 0.85;
-        }
-
-        if (randomness > 0.01) {
-          angle += ((i % 7) - 3) * 0.04 * randomness;
-          normR = Math.max(0.05, Math.min(0.95, normR + ((i % 5) - 2) * 0.03 * randomness));
-        }
-
-        const normAngle = ((angle % (Math.PI * 2)) + Math.PI * 2) % (Math.PI * 2);
-        const outerR = this.pizzaGenerator.computeRadiusAtAngle(normAngle, params);
-        const r = innerR + normR * (outerR - innerR);
-
-        const x = r * Math.cos(normAngle);
-        const z = r * Math.sin(normAngle);
-
-        const { yTop } = this.pizzaGenerator.computeSurfaceProfile(r, normAngle, outerR, innerR, params);
-
-        let sliceIndex = 0;
-        for (let s = 0; s < slices.length; s++) {
-          if (normAngle >= slices[s].angleStart && normAngle < slices[s].angleEnd) {
-            sliceIndex = s;
-            break;
+          if (spreadMode === 'Center Heavy') {
+            normR = Math.pow(normR, 1.8) * 0.7;
+          } else if (spreadMode === 'Crust Border') {
+            normR = 0.75 + normR * 0.22;
+          } else if (spreadMode === 'Spiral Swirl') {
+            angle = (i * 0.12) * Math.PI * 2;
+            normR = (i / density) * 0.85;
           }
+
+          if (randomness > 0.01) {
+            angle += ((i % 7) - 3) * 0.04 * randomness;
+            normR = Math.max(0.05, Math.min(0.95, normR + ((i % 5) - 2) * 0.03 * randomness));
+          }
+
+          const normAngle = ((angle % (Math.PI * 2)) + Math.PI * 2) % (Math.PI * 2);
+          const outerR = this.pizzaGenerator.computeRadiusAtAngle(normAngle, params);
+          const r = innerR + normR * (outerR - innerR);
+
+          const x = r * Math.cos(normAngle);
+          const z = r * Math.sin(normAngle);
+
+          const { yTop } = this.pizzaGenerator.computeSurfaceProfile(r, normAngle, outerR, innerR, params);
+
+          let sliceIndex = 0;
+          for (let s = 0; s < levelSlices.length; s++) {
+            if (normAngle >= levelSlices[s].angleStart && normAngle < levelSlices[s].angleEnd) {
+              sliceIndex = s;
+              break;
+            }
+          }
+
+          perSliceInstances[sliceIndex].push({
+            x,
+            y: yTop + 0.003,
+            z,
+            rotX: ((i * 13) % 360) * (Math.PI / 180),
+            rotY: ((i * 37) % 360) * (Math.PI / 180),
+            rotZ: ((i * 59) % 360) * (Math.PI / 180)
+          });
         }
 
-        perSliceInstances[sliceIndex].push({
-          x,
-          y: yTop + 0.003,
-          z,
-          rotX: ((i * 13) % 360) * (Math.PI / 180),
-          rotY: ((i * 37) % 360) * (Math.PI / 180),
-          rotZ: ((i * 59) % 360) * (Math.PI / 180)
-        });
-      }
+        // Build InstancedMesh for each slice in this level
+        for (let s = 0; s < levelSlices.length; s++) {
+          const instList = perSliceInstances[s];
+          if (instList.length === 0) continue;
 
-      // Build InstancedMesh for each slice
-      for (let s = 0; s < slices.length; s++) {
-        const instList = perSliceInstances[s];
-        if (instList.length === 0) continue;
+          const instMesh = new THREE.InstancedMesh(geom, mat, instList.length);
+          instMesh.castShadow = false;
+          instMesh.receiveShadow = false;
 
-        const instMesh = new THREE.InstancedMesh(geom, mat, instList.length);
-        instMesh.castShadow = false;
-        instMesh.receiveShadow = false;
+          for (let j = 0; j < instList.length; j++) {
+            const item = instList[j];
+            this.dummy.position.set(item.x, item.y, item.z);
+            this.dummy.rotation.set(item.rotX, item.rotY, item.rotZ);
+            this.dummy.updateMatrix();
+            instMesh.setMatrixAt(j, this.dummy.matrix);
+          }
+          instMesh.instanceMatrix.needsUpdate = true;
 
-        for (let j = 0; j < instList.length; j++) {
-          const item = instList[j];
-          this.dummy.position.set(item.x, item.y, item.z);
-          this.dummy.rotation.set(item.rotX, item.rotY, item.rotZ);
-          this.dummy.updateMatrix();
-          instMesh.setMatrixAt(j, this.dummy.matrix);
+          levelSlices[s].toppingsGroup.add(instMesh);
         }
-        instMesh.instanceMatrix.needsUpdate = true;
-
-        slices[s].toppingsGroup.add(instMesh);
       }
     }
   }
