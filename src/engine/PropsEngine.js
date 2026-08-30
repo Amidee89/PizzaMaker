@@ -262,11 +262,22 @@ export class PropsEngine {
       wallRight.position.set(boxW / 2, boxH / 2 - 0.015, 0);
       boxGroup.add(wallRight);
 
-      const lid = new THREE.Mesh(new THREE.BoxGeometry(boxW, 0.02, boxW), cardMat);
+      // Lid hinges from the back edge of the box (not the center)
       const lidAngleDeg = params.prop_box_lid_angle !== undefined ? params.prop_box_lid_angle : 115;
-      lid.rotation.x = -Math.PI * (lidAngleDeg / 180);
+      const lidAngleRad = (lidAngleDeg / 180) * Math.PI;
+
+      // Create a pivot group at the back edge (hinge point)
+      const lidPivot = new THREE.Group();
+      lidPivot.position.set(0, boxH - 0.015, -boxW / 2);
+
+      // The lid geometry is offset so it extends from the pivot toward the front
+      const lid = new THREE.Mesh(new THREE.BoxGeometry(boxW, 0.02, boxW), cardMat);
+      lid.position.set(0, 0, boxW / 2); // offset from pivot so hinge is at back edge
       lid.castShadow = true;
-      boxGroup.add(lid);
+
+      lidPivot.rotation.x = -lidAngleRad;
+      lidPivot.add(lid);
+      boxGroup.add(lidPivot);
 
       this.rootGroup.add(boxGroup);
     } else if (containerType === 'White Ceramic Plate') {
@@ -336,6 +347,9 @@ export class PropsEngine {
 
     // Build Steam Emitter (Denser particle cloud)
     this.buildSteamEmitter(params);
+
+    // Build background environment
+    this.buildEnvironment();
   }
 
   /**
@@ -435,6 +449,141 @@ export class PropsEngine {
     }
 
     posAttr.needsUpdate = true;
+  }
+
+  /**
+   * Builds a background environment: wooden table, back wall, and ambient props
+   * to give the scene depth and context instead of floating in a void.
+   */
+  buildEnvironment() {
+    // Remove any previous environment group
+    const prevEnv = this.rootGroup.getObjectByName('EnvironmentGroup');
+    if (prevEnv) {
+      this.rootGroup.remove(prevEnv);
+    }
+
+    const envGroup = new THREE.Group();
+    envGroup.name = 'EnvironmentGroup';
+
+    // --- 1. Wooden Table Surface ---
+    const tableTex = this.generateWoodTexture(0.15);
+    tableTex.wrapS = THREE.RepeatWrapping;
+    tableTex.wrapT = THREE.RepeatWrapping;
+    tableTex.repeat.set(3, 3);
+    const tableMat = new THREE.MeshStandardMaterial({
+      map: tableTex,
+      roughness: 0.55,
+      metalness: 0.05
+    });
+
+    const tableGeom = new THREE.BoxGeometry(12, 0.08, 12);
+    const table = new THREE.Mesh(tableGeom, tableMat);
+    table.position.set(0, -0.09, 0);
+    table.receiveShadow = true;
+    envGroup.add(table);
+
+    // --- 2. Back Wall ---
+    const wallCanvas = document.createElement('canvas');
+    wallCanvas.width = 512; wallCanvas.height = 512;
+    const wallCtx = wallCanvas.getContext('2d');
+
+    // Warm terracotta / plaster gradient
+    const wallGrad = wallCtx.createLinearGradient(0, 0, 0, 512);
+    wallGrad.addColorStop(0, '#3D2820');
+    wallGrad.addColorStop(0.3, '#4A322A');
+    wallGrad.addColorStop(0.7, '#3A2518');
+    wallGrad.addColorStop(1, '#2A1A12');
+    wallCtx.fillStyle = wallGrad;
+    wallCtx.fillRect(0, 0, 512, 512);
+
+    // Subtle plaster texture noise
+    const wallImgData = wallCtx.getImageData(0, 0, 512, 512);
+    const wallData = wallImgData.data;
+    for (let i = 0; i < wallData.length; i += 4) {
+      const noise = (Math.random() - 0.5) * 12;
+      wallData[i] = Math.min(255, Math.max(0, wallData[i] + noise));
+      wallData[i + 1] = Math.min(255, Math.max(0, wallData[i + 1] + noise));
+      wallData[i + 2] = Math.min(255, Math.max(0, wallData[i + 2] + noise));
+    }
+    wallCtx.putImageData(wallImgData, 0, 0);
+
+    const wallTex = new THREE.CanvasTexture(wallCanvas);
+    const wallMat = new THREE.MeshStandardMaterial({
+      map: wallTex,
+      roughness: 0.92,
+      metalness: 0.0
+    });
+
+    const backWall = new THREE.Mesh(new THREE.PlaneGeometry(12, 5), wallMat);
+    backWall.position.set(0, 2.4, -6);
+    backWall.receiveShadow = true;
+    envGroup.add(backWall);
+
+    // Side walls (angled slightly for depth)
+    const leftWall = new THREE.Mesh(new THREE.PlaneGeometry(12, 5), wallMat);
+    leftWall.position.set(-6, 2.4, 0);
+    leftWall.rotation.y = Math.PI / 2;
+    leftWall.receiveShadow = true;
+    envGroup.add(leftWall);
+
+    const rightWall = new THREE.Mesh(new THREE.PlaneGeometry(12, 5), wallMat);
+    rightWall.position.set(6, 2.4, 0);
+    rightWall.rotation.y = -Math.PI / 2;
+    rightWall.receiveShadow = true;
+    envGroup.add(rightWall);
+
+    // --- 3. Subtle warm ceiling ---
+    const ceilMat = new THREE.MeshStandardMaterial({
+      color: 0x2A1A12,
+      roughness: 0.95,
+      metalness: 0.0
+    });
+    const ceiling = new THREE.Mesh(new THREE.PlaneGeometry(12, 12), ceilMat);
+    ceiling.position.set(0, 4.9, 0);
+    ceiling.rotation.x = Math.PI / 2;
+    envGroup.add(ceiling);
+
+    // --- 4. Table edge trim detail ---
+    const trimMat = new THREE.MeshStandardMaterial({
+      color: 0x5C3A20,
+      roughness: 0.6,
+      metalness: 0.08
+    });
+    const frontTrim = new THREE.Mesh(new THREE.BoxGeometry(12, 0.12, 0.04), trimMat);
+    frontTrim.position.set(0, -0.09, 6);
+    envGroup.add(frontTrim);
+
+    // --- 5. Hanging warm lamp (simple geometric) ---
+    const lampShadeMat = new THREE.MeshStandardMaterial({
+      color: 0x8B5E2B,
+      roughness: 0.7,
+      metalness: 0.15,
+      side: THREE.DoubleSide
+    });
+    const shadeGeom = new THREE.ConeGeometry(0.45, 0.35, 16, 1, true);
+    const shade = new THREE.Mesh(shadeGeom, lampShadeMat);
+    shade.position.set(0, 3.2, 0);
+    shade.rotation.x = Math.PI; // inverted cone
+    envGroup.add(shade);
+
+    // Lamp cord
+    const cordMat = new THREE.MeshStandardMaterial({ color: 0x222222, roughness: 0.8 });
+    const cord = new THREE.Mesh(new THREE.CylinderGeometry(0.008, 0.008, 1.7, 6), cordMat);
+    cord.position.set(0, 4.05, 0);
+    envGroup.add(cord);
+
+    // Warm light bulb glow (small emissive sphere)
+    const bulbMat = new THREE.MeshStandardMaterial({
+      color: 0xFFE4B5,
+      emissive: 0xFFA033,
+      emissiveIntensity: 0.8,
+      roughness: 0.2
+    });
+    const bulb = new THREE.Mesh(new THREE.SphereGeometry(0.06, 12, 8), bulbMat);
+    bulb.position.set(0, 3.15, 0);
+    envGroup.add(bulb);
+
+    this.rootGroup.add(envGroup);
   }
 }
 

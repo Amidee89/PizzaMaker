@@ -67,8 +67,8 @@ export class PizzaMakerApp {
   initThree() {
     // 1. Scene
     this.scene = new THREE.Scene();
-    this.scene.background = new THREE.Color(0x0C0E14);
-    this.scene.fog = new THREE.FogExp2(0x0C0E14, 0.12);
+    this.scene.background = new THREE.Color(0x1A1210);
+    this.scene.fog = new THREE.FogExp2(0x1A1210, 0.08);
 
     // 2. Camera
     const width = this.canvas.clientWidth || window.innerWidth;
@@ -229,13 +229,11 @@ export class PizzaMakerApp {
       const si = slice.sliceIndex;
       slice.wedgeGroup.visible = si < visibleSlices;
 
-      if (si === pullIndex && pullOffset > 0.001) {
-        const scale = slice.scale || 1.0;
-        const ox = slice.originX || 0;
-        const oz = slice.originZ || 0;
+      const midAngle = slice.midAngle;
+      if (si === pullIndex && pullOffset > 0.001 && isFinite(midAngle)) {
         // Pull offset is in the parent group's local space, so no origin shift needed
-        slice.wedgeGroup.position.x = pullOffset * Math.cos(slice.midAngle);
-        slice.wedgeGroup.position.z = pullOffset * Math.sin(slice.midAngle);
+        slice.wedgeGroup.position.x = pullOffset * Math.cos(midAngle);
+        slice.wedgeGroup.position.z = pullOffset * Math.sin(midAngle);
       } else {
         slice.wedgeGroup.position.x = 0;
         slice.wedgeGroup.position.z = 0;
@@ -387,13 +385,17 @@ export class PizzaMakerApp {
         }
 
         if (obj && obj.name.startsWith('SliceWedge_')) {
-          const sliceNum = parseInt(obj.name.replace('SliceWedge_', ''), 10);
-          this.params.slice_pull_index = sliceNum;
-          this.params.slice_pull_offset = this.params.slice_pull_offset > 0.1 ? 0 : 3.0;
+          // Name format: SliceWedge_L{level}_{index} e.g. SliceWedge_L0_3
+          const match = obj.name.match(/SliceWedge_L\d+_(\d+)/);
+          const sliceNum = match ? parseInt(match[1], 10) : NaN;
+          if (!isNaN(sliceNum)) {
+            this.params.slice_pull_index = sliceNum;
+            this.params.slice_pull_offset = this.params.slice_pull_offset > 0.1 ? 0 : 3.0;
 
-          this.updateSliceTransforms();
-          this.uiManager.syncUIValues(this.params, this.toppings, this.seasonings);
-          this.showToast(`🍕 Selected Slice #${sliceNum} (${this.params.slice_pull_offset > 0 ? 'Pulled Out' : 'Retracted'})`);
+            this.updateSliceTransforms();
+            this.uiManager.syncUIValues(this.params, this.toppings, this.seasonings);
+            this.showToast(`🍕 Selected Slice #${sliceNum} (${this.params.slice_pull_offset > 0 ? 'Pulled Out' : 'Retracted'})`);
+          }
         }
       }
     });

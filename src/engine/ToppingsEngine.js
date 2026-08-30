@@ -508,12 +508,19 @@ export class ToppingsEngine {
     const sauceMargin = ((params.sauce_margin || 16.0) * 0.05) / 1.5;
 
     for (const [level, levelSlices] of levelMap.entries()) {
+      // Get scale and origin from the first slice of this level
+      const refSlice = levelSlices[0];
+      const levelScale = refSlice.scale || 1.0;
+
       for (let layerIdx = 0; layerIdx < toppingsConfig.length; layerIdx++) {
         const toppingLayer = toppingsConfig[layerIdx];
         const type = toppingLayer.type;
         const count = toppingLayer.count || 0;
         const userScale = toppingLayer.scale || 1.0;
         if (count <= 0) continue;
+
+        // Scale count for fractal children — fewer toppings on smaller pizzas
+        const scaledCount = level === 0 ? count : Math.max(1, Math.round(count * levelScale * levelScale));
 
         let layerYOffset = 0.005;
         if (type === 'pepperoni') layerYOffset = 0.018;
@@ -522,15 +529,16 @@ export class ToppingsEngine {
 
         const layerAngleOffset = layerIdx * 1.61803398875 * Math.PI;
 
-        for (let i = 0; i < count; i++) {
+        for (let i = 0; i < scaledCount; i++) {
           const angle = layerAngleOffset + (i * 137.508 * Math.PI) / 180 + Math.sin(i * 3.7 + layerIdx) * 0.15;
-          const normDist = 0.22 + 0.70 * Math.sqrt((i + 0.5) / count);
+          const normDist = 0.22 + 0.70 * Math.sqrt((i + 0.5) / scaledCount);
           const normAngle = ((angle % (Math.PI * 2)) + Math.PI * 2) % (Math.PI * 2);
 
           const outerR = this.pizzaGenerator.computeRadiusAtAngle(normAngle, params);
           const maxR = Math.max(innerR + 0.15, outerR - sauceMargin - 0.08);
           const r = innerR + normDist * (maxR - innerR);
 
+          // Compute position in the pizza's canonical local space (level 0 coords)
           const x = r * Math.cos(normAngle);
           const z = r * Math.sin(normAngle);
 
@@ -548,6 +556,9 @@ export class ToppingsEngine {
           const scaleJitter = userScale * (0.92 + (i % 4) * 0.05);
           const mesh = this.createToppingMesh(type, scaleJitter);
 
+          // Position in canonical pizza space — the level group's own transform
+          // (position + scale) handles the world-space offset, so we place toppings
+          // in the same coordinate space as the dough geometry.
           mesh.position.set(x, yTop + layerYOffset, z);
           mesh.rotation.y = normAngle + ((i * 47) % 360) * (Math.PI / 180);
           mesh.rotation.x = ((i % 3) - 1) * 0.04;

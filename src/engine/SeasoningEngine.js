@@ -99,10 +99,17 @@ export class SeasoningEngine {
     const innerR = donutHole > 0.01 ? baseRadius * donutHole : 0.0;
 
     for (const [level, levelSlices] of levelMap.entries()) {
+      // Get scale from the first slice of this level for fractal density scaling
+      const refSlice = levelSlices[0];
+      const levelScale = refSlice.scale || 1.0;
+
       for (const layer of layers) {
         const type = layer.type || 'oregano';
-        const density = Math.min(300, Math.max(0, Math.round(layer.density !== undefined ? layer.density : 100)));
-        if (density <= 0) continue;
+        const baseDensity = Math.min(300, Math.max(0, Math.round(layer.density !== undefined ? layer.density : 100)));
+        if (baseDensity <= 0) continue;
+
+        // Scale density for fractal children — fewer particles on smaller pizzas
+        const density = level === 0 ? baseDensity : Math.max(1, Math.round(baseDensity * levelScale * levelScale));
 
         const spreadMode = layer.spreadMode || 'Uniform Scatter';
         const randomness = layer.randomness !== undefined ? layer.randomness : 0.5;
