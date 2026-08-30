@@ -36,6 +36,7 @@ export class UIManager {
 
   init() {
     this.renderPresets();
+    this.initPresetsRibbonScroll();
     this.renderAccordionCategories();
     this.renderSliceQuickBar();
     this.bindHeaderActions();
@@ -46,18 +47,131 @@ export class UIManager {
     if (!this.presetBarContainer) return;
     this.presetBarContainer.innerHTML = '';
 
-    for (const [id, preset] of Object.entries(PRESETS)) {
-      const btn = document.createElement('button');
-      btn.className = 'preset-btn';
-      btn.dataset.presetId = id;
-      btn.innerHTML = `<span class="preset-icon">${preset.icon}</span> <span class="preset-name">${preset.name}</span>`;
-      btn.addEventListener('click', () => {
-        document.querySelectorAll('.preset-btn').forEach(b => b.classList.remove('active'));
-        btn.classList.add('active');
-        this.app.presetManager.loadPreset(id);
-      });
-      this.presetBarContainer.appendChild(btn);
+    // Render 2x duplicates for seamless continuous infinite rolling ribbon
+    for (let loop = 0; loop < 2; loop++) {
+      for (const [id, preset] of Object.entries(PRESETS)) {
+        const btn = document.createElement('button');
+        btn.className = 'preset-btn';
+        btn.dataset.presetId = id;
+        btn.innerHTML = `<span class="preset-icon">${preset.icon}</span> <span class="preset-name">${preset.name}</span>`;
+        btn.addEventListener('click', () => {
+          document.querySelectorAll('.preset-btn').forEach(b => {
+            b.classList.toggle('active', b.dataset.presetId === id);
+          });
+          this.app.presetManager.loadPreset(id);
+        });
+        this.presetBarContainer.appendChild(btn);
+      }
     }
+  }
+
+  initPresetsRibbonScroll() {
+    const container = document.getElementById('presetScrollContainer');
+    const bar = document.getElementById('presetBar');
+    if (!container || !bar) return;
+
+    let isHovering = false;
+    let isDragging = false;
+    let wheelTimeout = null;
+    let startX = 0;
+    let startScroll = 0;
+    let scrollPos = 0;
+    const speed = 0.50; // smooth slow rolling speed in pixels per frame
+
+    // Hover pause on button bar
+    bar.addEventListener('mouseenter', () => { isHovering = true; });
+    bar.addEventListener('mouseleave', () => { isHovering = false; });
+
+    // Wheel scrolling: converts vertical and horizontal mousewheel into ribbon scroll
+    container.addEventListener('wheel', (e) => {
+      e.preventDefault();
+      const delta = (Math.abs(e.deltaX) > Math.abs(e.deltaY) ? e.deltaX : e.deltaY) * 1.2;
+      scrollPos += delta;
+
+      const halfWidth = bar.scrollWidth / 2;
+      if (halfWidth > 50) {
+        while (scrollPos >= halfWidth) scrollPos -= halfWidth;
+        while (scrollPos < 0) scrollPos += halfWidth;
+      }
+      container.scrollLeft = scrollPos;
+
+      // Temporarily pause auto-roll while user is actively wheeling
+      isHovering = true;
+      clearTimeout(wheelTimeout);
+      wheelTimeout = setTimeout(() => {
+        isHovering = false;
+      }, 1200);
+    }, { passive: false });
+
+    // Drag-to-scroll support
+    container.addEventListener('mousedown', (e) => {
+      isDragging = true;
+      startX = e.pageX - container.offsetLeft;
+      startScroll = scrollPos;
+      container.style.cursor = 'grabbing';
+    });
+
+    window.addEventListener('mousemove', (e) => {
+      if (!isDragging) return;
+      e.preventDefault();
+      const x = e.pageX - container.offsetLeft;
+      const walk = (x - startX) * 1.4;
+      scrollPos = startScroll - walk;
+      const halfWidth = bar.scrollWidth / 2;
+      if (halfWidth > 50) {
+        while (scrollPos >= halfWidth) scrollPos -= halfWidth;
+        while (scrollPos < 0) scrollPos += halfWidth;
+      }
+      container.scrollLeft = scrollPos;
+    });
+
+    window.addEventListener('mouseup', () => {
+      if (isDragging) {
+        isDragging = false;
+        container.style.cursor = '';
+      }
+    });
+
+    // Touch support for mobile/trackpads
+    container.addEventListener('touchstart', (e) => {
+      isDragging = true;
+      startX = e.touches[0].pageX - container.offsetLeft;
+      startScroll = scrollPos;
+    }, { passive: true });
+
+    container.addEventListener('touchmove', (e) => {
+      if (!isDragging) return;
+      const x = e.touches[0].pageX - container.offsetLeft;
+      const walk = (x - startX) * 1.4;
+      scrollPos = startScroll - walk;
+      const halfWidth = bar.scrollWidth / 2;
+      if (halfWidth > 50) {
+        while (scrollPos >= halfWidth) scrollPos -= halfWidth;
+        while (scrollPos < 0) scrollPos += halfWidth;
+      }
+      container.scrollLeft = scrollPos;
+    }, { passive: true });
+
+    container.addEventListener('touchend', () => {
+      isDragging = false;
+    }, { passive: true });
+
+    // Continuous smooth auto-roll loop
+    const step = () => {
+      if (!isHovering && !isDragging && bar.scrollWidth > 0) {
+        scrollPos += speed;
+        const halfWidth = bar.scrollWidth / 2;
+        if (halfWidth > 50) {
+          if (scrollPos >= halfWidth) {
+            scrollPos -= halfWidth;
+          }
+          container.scrollLeft = scrollPos;
+        }
+      }
+      requestAnimationFrame(step);
+    };
+
+    requestAnimationFrame(step);
   }
 
   renderAccordionCategories() {
@@ -543,6 +657,26 @@ export class UIManager {
       });
     }
 
+    const btnImport = document.getElementById('btnImportRecipe');
+    const fileInput = document.getElementById('recipeFileInput');
+    if (btnImport && fileInput) {
+      btnImport.addEventListener('click', () => {
+        fileInput.value = '';
+        fileInput.click();
+      });
+
+      fileInput.addEventListener('change', (e) => {
+        if (e.target.files && e.target.files.length > 0) {
+          const file = e.target.files[0];
+          const reader = new FileReader();
+          reader.onload = (event) => {
+            this.app.importRecipeJSON(event.target.result);
+          };
+          reader.readAsText(file);
+        }
+      });
+    }
+
     const btnCopyRecipe = document.getElementById('btnCopyRecipe');
     if (btnCopyRecipe) {
       btnCopyRecipe.addEventListener('click', () => {
@@ -564,19 +698,36 @@ export class UIManager {
   }
 
   bindCameraControls() {
+    const hudButtons = ['camHero', 'camTop', 'camClose'];
+    const setActive = (activeId) => {
+      hudButtons.forEach(id => {
+        const b = document.getElementById(id);
+        if (b) b.classList.toggle('active', id === activeId);
+      });
+    };
+
     const btnHero = document.getElementById('camHero');
     if (btnHero) {
-      btnHero.addEventListener('click', () => this.app.setCameraView('hero'));
+      btnHero.addEventListener('click', () => {
+        setActive('camHero');
+        this.app.setCameraView('hero');
+      });
     }
 
     const btnTop = document.getElementById('camTop');
     if (btnTop) {
-      btnTop.addEventListener('click', () => this.app.setCameraView('top'));
+      btnTop.addEventListener('click', () => {
+        setActive('camTop');
+        this.app.setCameraView('top');
+      });
     }
 
     const btnClose = document.getElementById('camClose');
     if (btnClose) {
-      btnClose.addEventListener('click', () => this.app.setCameraView('close'));
+      btnClose.addEventListener('click', () => {
+        setActive('camClose');
+        this.app.setCameraView('close');
+      });
     }
 
     const btnAutoRot = document.getElementById('camAutoRotate');

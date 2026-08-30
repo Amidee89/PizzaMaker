@@ -12,7 +12,10 @@ export class ToppingsEngine {
     this.toppingMaterials = this.initMaterials();
   }
 
-  initMaterials() {
+  initMaterials(params = {}) {
+    const bake = params.bake_level !== undefined ? params.bake_level : 0.65;
+    const coalProgress = Math.max(0, (bake - 0.75) / 0.25);
+
     // 1. Pepperoni Material - Deep Crimson Red with Paprika Oil & Charred Edge
     const pepCanvas = document.createElement('canvas');
     pepCanvas.width = 256; pepCanvas.height = 256;
@@ -32,23 +35,34 @@ export class ToppingsEngine {
       pepCtx.fillRect(sx, sy, 2 + Math.random() * 3, 2 + Math.random() * 3);
     }
 
+    if (coalProgress > 0) {
+      pepCtx.fillStyle = `rgba(18, 14, 14, ${coalProgress * 0.95})`;
+      pepCtx.fillRect(0, 0, 256, 256);
+    }
+
     const pepTex = new THREE.CanvasTexture(pepCanvas);
     pepTex.needsUpdate = true;
 
+    const pepColor = new THREE.Color(0xBD2615);
+    if (coalProgress > 0) pepColor.lerp(new THREE.Color(0x181414), coalProgress);
+
     const pepperoni = new THREE.MeshStandardMaterial({
       map: pepTex,
-      color: 0xBD2615,
-      roughness: 0.30,
-      metalness: 0.08,
+      color: pepColor,
+      roughness: coalProgress > 0.8 ? 0.95 : 0.30,
+      metalness: coalProgress > 0.8 ? 0.0 : 0.08,
       side: THREE.DoubleSide
     });
 
+    const greaseColor = new THREE.Color(0xFF6600);
+    if (coalProgress > 0) greaseColor.lerp(new THREE.Color(0x181414), coalProgress);
+
     const pepperoniGrease = new THREE.MeshStandardMaterial({
-      color: 0xFF6600,
-      roughness: 0.04,
+      color: greaseColor,
+      roughness: coalProgress > 0.8 ? 0.9 : 0.04,
       metalness: 0.2,
       transparent: true,
-      opacity: 0.94,
+      opacity: coalProgress > 0.8 ? 0.2 : 0.94,
       side: THREE.DoubleSide
     });
 
@@ -60,11 +74,10 @@ export class ToppingsEngine {
     cheeseGrad.addColorStop(0, '#FFF2BD');
     cheeseGrad.addColorStop(0.6, '#F7DC84');
     cheeseGrad.addColorStop(0.85, '#E5A534');
-    cheeseGrad.addColorStop(1.0, '#B86812'); // toasted blister
+    cheeseGrad.addColorStop(1.0, '#B86812');
     cheeseCtx.fillStyle = cheeseGrad;
     cheeseCtx.fillRect(0, 0, 256, 256);
 
-    // Add toasted blister spots
     for (let i = 0; i < 15; i++) {
       const bx = 40 + Math.random() * 176;
       const by = 40 + Math.random() * 176;
@@ -75,93 +88,82 @@ export class ToppingsEngine {
       cheeseCtx.fill();
     }
 
+    if (coalProgress > 0) {
+      cheeseCtx.fillStyle = `rgba(18, 14, 14, ${coalProgress * 0.92})`;
+      cheeseCtx.fillRect(0, 0, 256, 256);
+    }
+
     const cheeseTex = new THREE.CanvasTexture(cheeseCanvas);
     cheeseTex.needsUpdate = true;
 
+    const cheeseColor = new THREE.Color(0xFEE694);
+    if (coalProgress > 0) cheeseColor.lerp(new THREE.Color(0x221C1A), coalProgress);
+
     const mozzarellaMelt = new THREE.MeshStandardMaterial({
       map: cheeseTex,
-      color: 0xFEE694,
-      roughness: 0.28,
+      color: cheeseColor,
+      roughness: coalProgress > 0.8 ? 0.95 : 0.28,
       metalness: 0.02,
       side: THREE.DoubleSide
     });
 
     // 3. Fresh Mozzarella Pearl Material
+    const pearlColor = new THREE.Color(0xFFFFFF);
+    if (coalProgress > 0) pearlColor.lerp(new THREE.Color(0x241E1C), coalProgress);
+
     const mozzarellaPearl = new THREE.MeshStandardMaterial({
-      color: 0xFFFFFF,
-      roughness: 0.16,
+      color: pearlColor,
+      roughness: coalProgress > 0.8 ? 0.95 : 0.16,
       metalness: 0.02
     });
 
     // 4. Fresh Basil Leaf Material
+    const basilColor = new THREE.Color(0x1E824C);
+    if (coalProgress > 0) basilColor.lerp(new THREE.Color(0x111612), coalProgress);
+
     const basil = new THREE.MeshStandardMaterial({
-      color: 0x1E824C,
-      roughness: 0.35,
+      color: basilColor,
+      roughness: coalProgress > 0.8 ? 0.95 : 0.35,
       metalness: 0.05,
       side: THREE.DoubleSide
     });
+
+    // Helper for simple colored materials
+    const makeMat = (hex, rough, metal = 0.0) => {
+      const col = new THREE.Color(hex);
+      if (coalProgress > 0) col.lerp(new THREE.Color(0x181514), coalProgress);
+      return new THREE.MeshStandardMaterial({
+        color: col,
+        roughness: coalProgress > 0.8 ? 0.95 : rough,
+        metalness: coalProgress > 0.8 ? 0.0 : metal
+      });
+    };
 
     // 5. Mushroom Cap & Stem Materials
-    const mushroomCap = new THREE.MeshStandardMaterial({
-      color: 0x8C735A,
-      roughness: 0.65,
-      metalness: 0.0
-    });
-    const mushroomFlesh = new THREE.MeshStandardMaterial({
-      color: 0xF2EAE1,
-      roughness: 0.75,
-      metalness: 0.0
-    });
+    const mushroomCap = makeMat(0x8C735A, 0.65);
+    const mushroomFlesh = makeMat(0xF2EAE1, 0.75);
 
     // 6. Kalamata Olive Material
-    const olive = new THREE.MeshStandardMaterial({
-      color: 0x221B20,
-      roughness: 0.22,
-      metalness: 0.12
-    });
+    const olive = makeMat(0x221B20, 0.22, 0.12);
 
     // 7. Green Bell Pepper Material
-    const bellPepper = new THREE.MeshStandardMaterial({
-      color: 0x27AE60,
-      roughness: 0.25,
-      metalness: 0.08
-    });
+    const bellPepper = makeMat(0x27AE60, 0.25, 0.08);
 
     // 8. Red Onion Material
-    const redOnion = new THREE.MeshStandardMaterial({
-      color: 0x9B59B6,
-      roughness: 0.28,
-      metalness: 0.05,
-      side: THREE.DoubleSide
-    });
+    const redOnionMat = makeMat(0x9B59B6, 0.28, 0.05);
+    redOnionMat.side = THREE.DoubleSide;
 
     // 9. Jalapeño Material
-    const jalapeno = new THREE.MeshStandardMaterial({
-      color: 0x196F3D,
-      roughness: 0.28,
-      metalness: 0.05
-    });
+    const jalapeno = makeMat(0x196F3D, 0.28, 0.05);
 
     // 10. Pineapple Material
-    const pineapple = new THREE.MeshStandardMaterial({
-      color: 0xF1C40F,
-      roughness: 0.35,
-      metalness: 0.02
-    });
+    const pineapple = makeMat(0xF1C40F, 0.35, 0.02);
 
     // 11. Sausage Material
-    const sausage = new THREE.MeshStandardMaterial({
-      color: 0x78281F,
-      roughness: 0.60,
-      metalness: 0.08
-    });
+    const sausage = makeMat(0x78281F, 0.60, 0.08);
 
     // 12. Bacon Material
-    const bacon = new THREE.MeshStandardMaterial({
-      color: 0x922B21,
-      roughness: 0.40,
-      metalness: 0.12
-    });
+    const bacon = makeMat(0x922B21, 0.40, 0.12);
 
     return {
       pepperoni,
@@ -173,7 +175,7 @@ export class ToppingsEngine {
       mushroomFlesh,
       olive,
       bellPepper,
-      redOnion,
+      redOnion: redOnionMat,
       jalapeno,
       pineapple,
       sausage,
@@ -484,6 +486,8 @@ export class ToppingsEngine {
   scatterToppings(toppingsConfig, params) {
     const slices = this.pizzaGenerator.slices;
     if (!slices || slices.length === 0) return;
+
+    this.toppingMaterials = this.initMaterials(params);
 
     for (const slice of slices) {
       while (slice.toppingsGroup.children.length > 0) {

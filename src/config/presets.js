@@ -58,6 +58,7 @@ export const PRESETS = {
       slice_pull_offset: 0.0,
       slice_pull_index: 1,
 
+      prop_environment: 'House Terrace',
       prop_container: 'Rustic Wooden Peel',
       prop_box_stains: 0.4,
       prop_crumbs: 20,
@@ -128,6 +129,7 @@ export const PRESETS = {
       slice_pull_offset: 3.0,
       slice_pull_index: 1,
 
+      prop_environment: 'Bright Modern Room',
       prop_container: 'Cardboard Delivery Box',
       prop_box_stains: 0.75,
       prop_crumbs: 30,
@@ -198,6 +200,7 @@ export const PRESETS = {
       slice_pull_offset: 0.0,
       slice_pull_index: 1,
 
+      prop_environment: 'Cozy Living Room',
       prop_container: 'Steel Diner Pan',
       prop_box_stains: 0.50,
       prop_crumbs: 18,
@@ -269,6 +272,7 @@ export const PRESETS = {
       slice_pull_offset: 3.5,
       slice_pull_index: 1,
 
+      prop_environment: 'Cozy Living Room',
       prop_container: 'Steel Diner Pan',
       prop_box_stains: 0.35,
       prop_crumbs: 25,
@@ -339,6 +343,7 @@ export const PRESETS = {
       slice_pull_offset: 0.0,
       slice_pull_index: 1,
 
+      prop_environment: 'Golden Sunset Sky',
       prop_container: 'Rustic Wooden Peel',
       prop_box_stains: 0.30,
       prop_crumbs: 15,
@@ -410,6 +415,7 @@ export const PRESETS = {
       slice_pull_offset: 0.0,
       slice_pull_index: 1,
 
+      prop_environment: 'House Terrace',
       prop_container: 'White Ceramic Plate',
       prop_box_stains: 0.25,
       prop_crumbs: 12,
@@ -480,6 +486,7 @@ export const PRESETS = {
       slice_pull_offset: 4.0,
       slice_pull_index: 1,
 
+      prop_environment: 'Sunset Cloudscape',
       prop_container: 'None (Floating)',
       prop_box_stains: 0.0,
       prop_crumbs: 0,
@@ -492,6 +499,220 @@ export const PRESETS = {
     seasonings: [
       { type: 'chili', density: 140, spreadMode: 'Uniform Scatter', randomness: 0.7 },
       { type: 'garlic_herb', density: 90, spreadMode: 'Uniform Scatter', randomness: 0.5 }
+    ]
+  },
+
+  sicilian_sfincione: {
+    id: 'sicilian_sfincione',
+    name: 'Sicilian Sfincione',
+    icon: '🍅',
+    description: 'Thick spongy Sicilian focaccia with sweet caramelized tomato onion sauce, oregano, extra virgin olive oil, and toasted breadcrumb topping.',
+    params: {
+      geo_sides: 4,
+      geo_stellation: 0.0,
+      geo_radius: 30.0,
+      geo_height: 18.0,
+      geo_ovalness: 1.25,
+      geo_oval_dir: 0,
+      geo_bowl_dome: 0.0,
+      geo_thick_var_amp: 0.08,
+      geo_thick_var_freq: 2.0,
+      geo_rad_waviness_amp: 0.03,
+      geo_rad_waviness_freq: 4,
+      geo_air_pockets_count: 6,
+      geo_air_pockets_size: 18.0,
+      geo_donut_hole: 0.0,
+      geo_fractal_reps: 0,
+      geo_fractal_ratio: 0.40,
+      geo_dough_color: '#E8CA92',
+      geo_dough_roughness: 0.85,
+
+      crust_width: 12.0,
+      crust_height_ratio: 1.2,
+      crust_profile: 'Square Focaccia',
+      crust_stuffed: false,
+      crust_stuff_amount: 10.0,
+      crust_stuff_type: 'Mozzarella Cheese',
+      crust_stuff_color: '#FFF3B3',
+      crust_blisters: 4,
+      crust_blister_height: 2.8,
+
+      bake_level: 0.72,
+      bake_char_dough: 0.30,
+      bake_char_crust: 0.55,
+      bake_bottom_browning: 0.88,
+      bake_bottom_char: 0.45,
+
+      sauce_enabled: true,
+      sauce_type: 'San Marzano Tomato',
+      sauce_color: '#A92415',
+      sauce_margin: 10.0,
+      sauce_thickness: 2.2,
+      sauce_spread_patch: 0.35,
+      sauce_texture_rough: 0.60,
+      sauce_shininess: 0.72,
+
+      slice_total: 4,
+      slice_visible_count: 4,
+      slice_pull_offset: 0.0,
+      slice_pull_index: 1,
+
+      prop_environment: 'Cozy Living Room',
+      prop_container: 'Steel Diner Pan',
+      prop_box_stains: 0.40,
+      prop_crumbs: 22,
+      fx_steam_intensity: 0.55
+    },
+    toppings: [
+      { type: 'onions', count: 18, scale: 1.0 },
+      { type: 'olives', count: 14, scale: 0.95 }
+    ],
+    seasonings: [
+      { type: 'oregano', density: 160, spreadMode: 'Uniform Scatter', randomness: 0.5 },
+      { type: 'evoo', density: 80, spreadMode: 'Spiral Swirl', randomness: 0.4 }
+    ]
+  },
+
+  quattro_formaggi: {
+    id: 'quattro_formaggi',
+    name: 'Quattro Formaggi Bianco',
+    icon: '🧀',
+    description: 'White artisan pie with decadent mozzarella melt, gorgonzola crumbles, parmigiano, and rich creamy ricotta swirls with cracked black pepper.',
+    params: {
+      geo_sides: 32,
+      geo_stellation: 0.0,
+      geo_radius: 34.0,
+      geo_height: 8.0,
+      geo_ovalness: 1.0,
+      geo_oval_dir: 0,
+      geo_bowl_dome: 0.05,
+      geo_thick_var_amp: 0.10,
+      geo_thick_var_freq: 2.5,
+      geo_rad_waviness_amp: 0.06,
+      geo_rad_waviness_freq: 6,
+      geo_air_pockets_count: 6,
+      geo_air_pockets_size: 15.0,
+      geo_donut_hole: 0.0,
+      geo_fractal_reps: 0,
+      geo_fractal_ratio: 0.40,
+      geo_dough_color: '#F2E2BA',
+      geo_dough_roughness: 0.75,
+
+      crust_width: 22.0,
+      crust_height_ratio: 2.0,
+      crust_profile: 'Puffy Round',
+      crust_stuffed: true,
+      crust_stuff_amount: 14.0,
+      crust_stuff_type: 'Ricotta & Herb',
+      crust_stuff_color: '#FFFFE0',
+      crust_blisters: 7,
+      crust_blister_height: 4.2,
+
+      bake_level: 0.64,
+      bake_char_dough: 0.22,
+      bake_char_crust: 0.45,
+      bake_bottom_browning: 0.80,
+      bake_bottom_char: 0.38,
+
+      sauce_enabled: true,
+      sauce_type: 'White Garlic Cream',
+      sauce_color: '#F7F3E8',
+      sauce_margin: 16.0,
+      sauce_thickness: 1.5,
+      sauce_spread_patch: 0.25,
+      sauce_texture_rough: 0.45,
+      sauce_shininess: 0.85,
+
+      slice_total: 8,
+      slice_visible_count: 8,
+      slice_pull_offset: 0.0,
+      slice_pull_index: 1,
+
+      prop_environment: 'Bright Modern Room',
+      prop_container: 'Rustic Wooden Peel',
+      prop_box_stains: 0.30,
+      prop_crumbs: 14,
+      fx_steam_intensity: 0.60
+    },
+    toppings: [
+      { type: 'mozzarella_melt', count: 18, scale: 1.05 },
+      { type: 'mozzarella_pearls', count: 8, scale: 1.1 }
+    ],
+    seasonings: [
+      { type: 'parmigiano', density: 170, spreadMode: 'Uniform Scatter', randomness: 0.4 },
+      { type: 'black_pepper', density: 70, spreadMode: 'Uniform Scatter', randomness: 0.6 }
+    ]
+  },
+
+  calabrian_fire: {
+    id: 'calabrian_fire',
+    name: 'Calabrian Hot Honey Fire',
+    icon: '🌶️',
+    description: 'Blistered crust with fiery tomato sauce, spicy pepperoni, fresh jalapeño rings, chili flakes, parmigiano, and infused hot honey sheen.',
+    params: {
+      geo_sides: 32,
+      geo_stellation: 0.0,
+      geo_radius: 36.0,
+      geo_height: 7.0,
+      geo_ovalness: 1.0,
+      geo_oval_dir: 0,
+      geo_bowl_dome: 0.0,
+      geo_thick_var_amp: 0.12,
+      geo_thick_var_freq: 2.8,
+      geo_rad_waviness_amp: 0.07,
+      geo_rad_waviness_freq: 7,
+      geo_air_pockets_count: 7,
+      geo_air_pockets_size: 16.0,
+      geo_donut_hole: 0.0,
+      geo_fractal_reps: 0,
+      geo_fractal_ratio: 0.40,
+      geo_dough_color: '#EEDAA5',
+      geo_dough_roughness: 0.80,
+
+      crust_width: 24.0,
+      crust_height_ratio: 2.2,
+      crust_profile: 'Crisp Tapered',
+      crust_stuffed: false,
+      crust_stuff_amount: 12.0,
+      crust_stuff_type: 'Mozzarella Cheese',
+      crust_stuff_color: '#FFF3B3',
+      crust_blisters: 8,
+      crust_blister_height: 4.8,
+
+      bake_level: 0.74,
+      bake_char_dough: 0.35,
+      bake_char_crust: 0.65,
+      bake_bottom_browning: 0.88,
+      bake_bottom_char: 0.52,
+
+      sauce_enabled: true,
+      sauce_type: 'Spicy Arrabbiata',
+      sauce_color: '#B52010',
+      sauce_margin: 15.0,
+      sauce_thickness: 1.6,
+      sauce_spread_patch: 0.30,
+      sauce_texture_rough: 0.55,
+      sauce_shininess: 0.88,
+
+      slice_total: 8,
+      slice_visible_count: 7,
+      slice_pull_offset: 2.5,
+      slice_pull_index: 1,
+
+      prop_environment: 'Golden Sunset Sky',
+      prop_container: 'Cardboard Delivery Box',
+      prop_box_stains: 0.65,
+      prop_crumbs: 26,
+      fx_steam_intensity: 0.70
+    },
+    toppings: [
+      { type: 'pepperoni', count: 24, scale: 1.05 },
+      { type: 'jalapenos', count: 16, scale: 1.0 },
+      { type: 'basil', count: 7, scale: 1.1 }
+    ],
+    seasonings: [
+      { type: 'chili', density: 160, spreadMode: 'Uniform Scatter', randomness: 0.6 },
+      { type: 'parmigiano', density: 80, spreadMode: 'Uniform Scatter', randomness: 0.4 }
     ]
   }
 };

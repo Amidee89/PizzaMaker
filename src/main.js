@@ -90,16 +90,16 @@ export class PizzaMakerApp {
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
     this.renderer.toneMappingExposure = 1.15;
 
-    // 4. Controls
+    // 4. Controls (Allows complete 360 inspection including underneath)
     this.controls = new OrbitControls(this.camera, this.renderer.domElement);
     this.controls.enableDamping = true;
     this.controls.dampingFactor = 0.05;
-    this.controls.maxPolarAngle = Math.PI / 2 - 0.05;
+    this.controls.maxPolarAngle = Math.PI - 0.08;
     this.controls.minDistance = 0.8;
     this.controls.maxDistance = 8.0;
     this.controls.target.set(0, 0.1, 0);
 
-    // 5. Lighting Setup (Studio Warm Pizzeria)
+    // 5. Lighting Setup (Studio Warm Pizzeria + Underside Bounce)
     this.setupLighting();
 
     // 6. Floor Shadow Receiver
@@ -137,6 +137,11 @@ export class PizzaMakerApp {
     const ovenLight = new THREE.PointLight(0xFF6600, 1.0, 6);
     ovenLight.position.set(-2, 1.5, 2);
     this.scene.add(ovenLight);
+
+    // Warm underside bounce light to brightly illuminate the bottom under-bake and stone scorch marks
+    const bottomBounceLight = new THREE.DirectionalLight(0xFFE5CC, 0.95);
+    bottomBounceLight.position.set(0, -6, 0);
+    this.scene.add(bottomBounceLight);
   }
 
   initEngines() {
@@ -170,8 +175,8 @@ export class PizzaMakerApp {
     // 3. Build Seasonings
     this.seasoningEngine.scatterSeasonings(this.seasonings, this.params);
 
-    // 4. Build Props & Steam
-    this.propsEngine.updateProps(this.params);
+    // 4. Build Props & Steam & Environment Skybox
+    this.propsEngine.updateProps(this.params, this.scene);
   }
 
   rebuildToppings() {
@@ -210,7 +215,7 @@ export class PizzaMakerApp {
     if (key === 'slice_pull_offset' || key === 'slice_pull_index' || key === 'slice_visible_count') {
       this.updateSliceTransforms();
     } else if (key.startsWith('prop_') || key.startsWith('fx_')) {
-      this.propsEngine.updateProps(this.params);
+      this.propsEngine.updateProps(this.params, this.scene);
     } else if (key.startsWith('season_')) {
       this.scheduleToppingsRebuild();
     } else {
@@ -225,18 +230,25 @@ export class PizzaMakerApp {
     const pullIndex = (this.params.slice_pull_index || 1) - 1;
 
     for (const slice of this.pizzaGenerator.slices) {
-      // Use the per-level sliceIndex, not the flat array position
       const si = slice.sliceIndex;
       slice.wedgeGroup.visible = si < visibleSlices;
 
       const midAngle = slice.midAngle;
       if (si === pullIndex && pullOffset > 0.001 && isFinite(midAngle)) {
-        // Pull offset is in the parent group's local space, so no origin shift needed
+        // Pure radial outward slide along the pizza plane
         slice.wedgeGroup.position.x = pullOffset * Math.cos(midAngle);
         slice.wedgeGroup.position.z = pullOffset * Math.sin(midAngle);
+        slice.wedgeGroup.position.y = 0;
+        slice.wedgeGroup.rotation.x = 0;
+        slice.wedgeGroup.rotation.y = 0;
+        slice.wedgeGroup.rotation.z = 0;
       } else {
         slice.wedgeGroup.position.x = 0;
         slice.wedgeGroup.position.z = 0;
+        slice.wedgeGroup.position.y = 0;
+        slice.wedgeGroup.rotation.x = 0;
+        slice.wedgeGroup.rotation.y = 0;
+        slice.wedgeGroup.rotation.z = 0;
       }
     }
   }
@@ -348,6 +360,27 @@ export class PizzaMakerApp {
       .catch(() => this.showToast('❌ Failed to copy to clipboard'));
   }
 
+  importRecipeJSON(jsonStr) {
+    try {
+      const data = typeof jsonStr === 'string' ? JSON.parse(jsonStr) : jsonStr;
+      const params = data.parameters || data.params;
+      if (!params) {
+        this.showToast('❌ Invalid Recipe JSON: missing parameters');
+        return false;
+      }
+      const toppings = data.toppings || [];
+      const seasonings = data.seasonings || [];
+      this.updateParameters(params, toppings, seasonings);
+      this.uiManager.syncUIValues(this.params, this.toppings, this.seasonings);
+      this.showToast(`🍕 Loaded Recipe: ${data.name || 'Artisanal Pizza'}!`);
+      return true;
+    } catch (e) {
+      console.error('Error importing recipe:', e);
+      this.showToast('❌ Failed to parse Recipe JSON file');
+      return false;
+    }
+  }
+
   showToast(msg) {
     let toast = document.getElementById('toastNotification');
     if (!toast) {
@@ -369,6 +402,22 @@ export class PizzaMakerApp {
       this.renderer.setSize(width, height);
     });
 
+    // Drag and Drop JSON file loading
+    window.addEventListener('dragover', (e) => e.preventDefault());
+    window.addEventListener('drop', (e) => {
+      e.preventDefault();
+      if (e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+        const file = e.dataTransfer.files[0];
+        if (file.name.endsWith('.json') || file.type === 'application/json') {
+          const reader = new FileReader();
+          reader.onload = (event) => {
+            this.importRecipeJSON(event.target.result);
+          };
+          reader.readAsText(file);
+        }
+      }
+    });
+
     // 3D Canvas Raycasting for Slice Click
     this.canvas.addEventListener('click', (e) => {
       const rect = this.canvas.getBoundingClientRect();
@@ -385,7 +434,6 @@ export class PizzaMakerApp {
         }
 
         if (obj && obj.name.startsWith('SliceWedge_')) {
-          // Name format: SliceWedge_L{level}_{index} e.g. SliceWedge_L0_3
           const match = obj.name.match(/SliceWedge_L\d+_(\d+)/);
           const sliceNum = match ? parseInt(match[1], 10) : NaN;
           if (!isNaN(sliceNum)) {

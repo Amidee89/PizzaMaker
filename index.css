@@ -158,21 +158,25 @@ body {
   border: 1px solid rgba(255, 87, 34, 0.3);
 }
 
-/* Presets Bar */
+/* Presets Bar - Slowly Rolling Infinite Ribbon */
 .preset-scroll-container {
   flex: 1;
-  overflow-x: auto;
+  overflow-x: hidden;
   overflow-y: hidden;
+  position: relative;
   padding: 4px 0;
-  scrollbar-width: thin;
-  scrollbar-color: rgba(255, 87, 34, 0.4) transparent;
+  mask-image: linear-gradient(to right, transparent 0%, black 2.5%, black 97.5%, transparent 100%);
+  -webkit-mask-image: linear-gradient(to right, transparent 0%, black 2.5%, black 97.5%, transparent 100%);
+  user-select: none;
 }
 .preset-bar {
   display: flex;
   align-items: center;
-  gap: 0.45rem;
+  gap: 0.55rem;
   white-space: nowrap;
+  width: max-content;
 }
+
 .preset-btn {
   background: rgba(255, 255, 255, 0.04);
   border: 1px solid var(--border-subtle);
@@ -249,6 +253,24 @@ body {
 .btn-export:hover {
   background: rgba(46, 204, 113, 0.28);
   border-color: #2ECC71;
+}
+.btn-import {
+  background: rgba(52, 152, 219, 0.15);
+  border-color: rgba(52, 152, 219, 0.35);
+  color: #AED6F1;
+}
+.btn-import:hover {
+  background: rgba(52, 152, 219, 0.28);
+  border-color: #3498DB;
+}
+.btn-recipe {
+  background: rgba(155, 89, 182, 0.15);
+  border-color: rgba(155, 89, 182, 0.35);
+  color: #D7BDE2;
+}
+.btn-recipe:hover {
+  background: rgba(155, 89, 182, 0.28);
+  border-color: #9B59B6;
 }
 
 /* --- Main Layout --- */

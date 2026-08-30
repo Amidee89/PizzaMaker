@@ -14,20 +14,40 @@ export class SeasoningEngine {
     this.dummy = new THREE.Object3D();
   }
 
-  initMaterials() {
+  initMaterials(params = {}) {
+    const bake = params.bake_level !== undefined ? params.bake_level : 0.65;
+    const coalProgress = Math.max(0, (bake - 0.75) / 0.25);
+
+    const makeMat = (hex, rough, metal = 0.0) => {
+      const col = new THREE.Color(hex);
+      if (coalProgress > 0) col.lerp(new THREE.Color(0x181514), coalProgress);
+      return new THREE.MeshStandardMaterial({
+        color: col,
+        roughness: coalProgress > 0.8 ? 0.95 : rough,
+        metalness: coalProgress > 0.8 ? 0.0 : metal,
+        side: THREE.DoubleSide
+      });
+    };
+
+    const oreganoColor = new THREE.Color(0x2E4A1E);
+    if (coalProgress > 0) oreganoColor.lerp(new THREE.Color(0x151614), coalProgress);
+
+    const evooColor = new THREE.Color(0x9ACD32);
+    if (coalProgress > 0) evooColor.lerp(new THREE.Color(0x1A1614), coalProgress);
+
     return {
-      oregano: new THREE.MeshBasicMaterial({ color: 0x2E4A1E, side: THREE.DoubleSide }),
-      chili: new THREE.MeshStandardMaterial({ color: 0xC41E1E, roughness: 0.3, metalness: 0.1, side: THREE.DoubleSide }),
-      chiliSeed: new THREE.MeshStandardMaterial({ color: 0xE8D072, roughness: 0.4 }),
-      parmigiano: new THREE.MeshStandardMaterial({ color: 0xFFF8DC, roughness: 0.75 }),
-      garlicHerb: new THREE.MeshStandardMaterial({ color: 0xEDE2C8, roughness: 0.85 }),
-      blackPepper: new THREE.MeshStandardMaterial({ color: 0x1A1A1A, roughness: 0.9 }),
+      oregano: new THREE.MeshBasicMaterial({ color: oreganoColor, side: THREE.DoubleSide }),
+      chili: makeMat(0xC41E1E, 0.3, 0.1),
+      chiliSeed: makeMat(0xE8D072, 0.4),
+      parmigiano: makeMat(0xFFF8DC, 0.75),
+      garlicHerb: makeMat(0xEDE2C8, 0.85),
+      blackPepper: makeMat(0x1A1A1A, 0.9),
       evoo: new THREE.MeshStandardMaterial({
-        color: 0x9ACD32,
-        roughness: 0.08,
+        color: evooColor,
+        roughness: coalProgress > 0.8 ? 0.9 : 0.08,
         metalness: 0.15,
         transparent: true,
-        opacity: 0.88
+        opacity: coalProgress > 0.8 ? 0.3 : 0.88
       })
     };
   }
@@ -74,6 +94,8 @@ export class SeasoningEngine {
   scatterSeasonings(seasoningsList, params) {
     const slices = this.pizzaGenerator.slices;
     if (!slices || slices.length === 0) return;
+
+    this.materials = this.initMaterials(params);
 
     // Handle single or multi-layer array
     const layers = Array.isArray(seasoningsList) ? seasoningsList : [];

@@ -18,6 +18,45 @@ export class PropsEngine {
     this.steamParticles = null;
     this.steamData = [];
     this.steamTime = 0;
+
+    this.skyboxCache = new Map();
+    this.textureLoader = new THREE.TextureLoader();
+    this.currentScene = null;
+    this.currentImagePath = null;
+  }
+
+  /**
+   * Loads 360 equirectangular skybox texture from skybox/ image directory
+   */
+  loadSkyboxTexture(imagePath) {
+    if (!imagePath) return null;
+    const randomOffset = Math.random();
+
+    if (this.skyboxCache.has(imagePath)) {
+      const tex = this.skyboxCache.get(imagePath);
+      tex.offset.x = randomOffset;
+      tex.needsUpdate = true;
+      return tex;
+    }
+
+    const texture = this.textureLoader.load(imagePath, (tex) => {
+      tex.mapping = THREE.EquirectangularReflectionMapping;
+      tex.colorSpace = THREE.SRGBColorSpace;
+      tex.wrapS = THREE.RepeatWrapping;
+      tex.offset.x = randomOffset;
+      tex.needsUpdate = true;
+      if (this.currentScene && this.currentImagePath === imagePath) {
+        this.currentScene.background = tex;
+        this.currentScene.environment = tex;
+      }
+    });
+
+    texture.mapping = THREE.EquirectangularReflectionMapping;
+    texture.colorSpace = THREE.SRGBColorSpace;
+    texture.wrapS = THREE.RepeatWrapping;
+    texture.offset.x = randomOffset;
+    this.skyboxCache.set(imagePath, texture);
+    return texture;
   }
 
   /**
@@ -58,6 +97,38 @@ export class PropsEngine {
           g = g * (1.0 - stainAmount * 0.48);
           b = b * (1.0 - stainAmount * 0.65);
         }
+
+        data[idx] = Math.min(255, Math.max(0, r));
+        data[idx + 1] = Math.min(255, Math.max(0, g));
+        data[idx + 2] = Math.min(255, Math.max(0, b));
+        data[idx + 3] = 255;
+      }
+    }
+    ctx.putImageData(imgData, 0, 0);
+    const tex = new THREE.CanvasTexture(canvas);
+    return tex;
+  }
+
+  /**
+   * Generates stone terrace tile texture
+   */
+  generateStoneTexture() {
+    const size = 512;
+    const canvas = document.createElement('canvas');
+    canvas.width = size; canvas.height = size;
+    const ctx = canvas.getContext('2d');
+    const imgData = ctx.createImageData(size, size);
+    const data = imgData.data;
+
+    for (let y = 0; y < size; y++) {
+      for (let x = 0; x < size; x++) {
+        const idx = (y * size + x) * 4;
+        const n1 = this.noise.noise2D(x * 0.02, y * 0.02) * 25;
+        const n2 = this.noise.noise2D(x * 0.1, y * 0.1) * 12;
+
+        let r = 160 + n1 + n2;
+        let g = 145 + n1 + n2;
+        let b = 130 + n1 + n2;
 
         data[idx] = Math.min(255, Math.max(0, r));
         data[idx + 1] = Math.min(255, Math.max(0, g));
@@ -162,9 +233,9 @@ export class PropsEngine {
   }
 
   /**
-   * Builds the selected 3D prop container
+   * Builds the selected 3D prop container and environment
    */
-  updateProps(params) {
+  updateProps(params, scene) {
     while (this.rootGroup.children.length > 0) {
       const child = this.rootGroup.children[0];
       this.rootGroup.remove(child);
@@ -262,17 +333,15 @@ export class PropsEngine {
       wallRight.position.set(boxW / 2, boxH / 2 - 0.015, 0);
       boxGroup.add(wallRight);
 
-      // Lid hinges from the back edge of the box (not the center)
+      // Lid hinges from the back edge of the box
       const lidAngleDeg = params.prop_box_lid_angle !== undefined ? params.prop_box_lid_angle : 115;
       const lidAngleRad = (lidAngleDeg / 180) * Math.PI;
 
-      // Create a pivot group at the back edge (hinge point)
       const lidPivot = new THREE.Group();
       lidPivot.position.set(0, boxH - 0.015, -boxW / 2);
 
-      // The lid geometry is offset so it extends from the pivot toward the front
       const lid = new THREE.Mesh(new THREE.BoxGeometry(boxW, 0.02, boxW), cardMat);
-      lid.position.set(0, 0, boxW / 2); // offset from pivot so hinge is at back edge
+      lid.position.set(0, 0, boxW / 2);
       lid.castShadow = true;
 
       lidPivot.rotation.x = -lidAngleRad;
@@ -345,15 +414,15 @@ export class PropsEngine {
       }
     }
 
-    // Build Steam Emitter (Denser particle cloud)
+    // Build Steam Emitter
     this.buildSteamEmitter(params);
 
-    // Build background environment
-    this.buildEnvironment();
+    // Build background environment and skybox
+    this.buildEnvironment(params, scene);
   }
 
   /**
-   * Builds animated rising thermal steam particle cloud (Extended density)
+   * Builds animated rising thermal steam particle cloud
    */
   buildSteamEmitter(params) {
     if (this.steamParticles) {
@@ -365,7 +434,6 @@ export class PropsEngine {
     const intensity = params.fx_steam_intensity !== undefined ? params.fx_steam_intensity : 0.50;
     if (intensity <= 0.01) return;
 
-    // Up to 180 particles for dense billowing haze
     const particleCount = Math.round(90 * intensity);
     const geom = new THREE.BufferGeometry();
     const positions = new Float32Array(particleCount * 3);
@@ -398,7 +466,6 @@ export class PropsEngine {
 
     geom.setAttribute('position', new THREE.BufferAttribute(positions, 3));
 
-    // High quality soft puff texture
     const canvas = document.createElement('canvas');
     canvas.width = 64; canvas.height = 64;
     const ctx = canvas.getContext('2d');
@@ -452,136 +519,107 @@ export class PropsEngine {
   }
 
   /**
-   * Builds a background environment: wooden table, back wall, and ambient props
-   * to give the scene depth and context instead of floating in a void.
+   * Generates deep smoked charcoal timber & slate countertop texture for table
+   * Provides high contrast against golden wooden peels and ceramic plates
    */
-  buildEnvironment() {
-    // Remove any previous environment group
+  generateTableTexture() {
+    const size = 512;
+    const canvas = document.createElement('canvas');
+    canvas.width = size; canvas.height = size;
+    const ctx = canvas.getContext('2d');
+    const imgData = ctx.createImageData(size, size);
+    const data = imgData.data;
+
+    for (let y = 0; y < size; y++) {
+      for (let x = 0; x < size; x++) {
+        const idx = (y * size + x) * 4;
+        const grain = this.noise.noise2D(x * 0.008, y * 0.05) * 8;
+        const fiber = this.noise.noise2D(x * 0.3, y * 0.02) * 5;
+        const slate = this.noise.noise2D(x * 0.03, y * 0.03) * 6;
+
+        let r = 42 + grain + fiber + slate;
+        let g = 38 + grain * 0.9 + fiber + slate;
+        let b = 34 + grain * 0.8 + fiber + slate;
+
+        data[idx] = Math.min(255, Math.max(0, r));
+        data[idx + 1] = Math.min(255, Math.max(0, g));
+        data[idx + 2] = Math.min(255, Math.max(0, b));
+        data[idx + 3] = 255;
+      }
+    }
+    ctx.putImageData(imgData, 0, 0);
+    const tex = new THREE.CanvasTexture(canvas);
+    return tex;
+  }
+
+  /**
+   * Builds the selected background environment and skybox
+   */
+  buildEnvironment(params = {}, scene = null) {
     const prevEnv = this.rootGroup.getObjectByName('EnvironmentGroup');
     if (prevEnv) {
       this.rootGroup.remove(prevEnv);
     }
 
+    const envType = params.prop_environment || 'Bright Modern Room';
+
     const envGroup = new THREE.Group();
     envGroup.name = 'EnvironmentGroup';
 
-    // --- 1. Wooden Table Surface ---
-    const tableTex = this.generateWoodTexture(0.15);
-    tableTex.wrapS = THREE.RepeatWrapping;
-    tableTex.wrapT = THREE.RepeatWrapping;
-    tableTex.repeat.set(3, 3);
-    const tableMat = new THREE.MeshStandardMaterial({
-      map: tableTex,
-      roughness: 0.55,
-      metalness: 0.05
-    });
+    const SKYBOX_FILE_MAP = {
+      'Commercial Kitchen': 'skybox/kitchen.jpg',
+      'Bright Modern Room': 'skybox/bright_room.jpg',
+      'Cozy Living Room': 'skybox/livingroom.jpg',
+      'House Terrace': 'skybox/house.jpg',
+      'Aerial Drone Panorama': 'skybox/drone.jpg',
+      'Blue Sky & Mountains': 'skybox/sky_1.png',
+      'Sunset Cloudscape': 'skybox/sky_2.png',
+      'Golden Sunset Sky': 'skybox/sky_3.png',
+      // Legacy aliases for saved recipe JSONs:
+      'Sunset Amalfi (Skybox)': 'skybox/sky_3.png',
+      'Sunny Terrace (Skybox)': 'skybox/sky_1.png',
+      'Campfire Night (Skybox)': 'skybox/drone.jpg',
+      'Modern Studio (Skybox)': 'skybox/bright_room.jpg',
+      'Rustic Pizzeria Room': 'skybox/kitchen.jpg'
+    };
 
-    const tableGeom = new THREE.BoxGeometry(12, 0.08, 12);
-    const table = new THREE.Mesh(tableGeom, tableMat);
-    table.position.set(0, -0.09, 0);
-    table.receiveShadow = true;
-    envGroup.add(table);
+    if (envType === 'Minimal Dark Void') {
+      if (scene) {
+        scene.background = new THREE.Color(0x0A0C10);
+        scene.environment = null;
+        scene.fog = null;
+      }
+    } else {
+      const filePath = SKYBOX_FILE_MAP[envType] || 'skybox/bright_room.jpg';
+      if (scene) {
+        this.currentScene = scene;
+        this.currentImagePath = filePath;
+        const tex = this.loadSkyboxTexture(filePath);
+        scene.background = tex;
+        scene.environment = tex;
+        scene.fog = null;
 
-    // --- 2. Back Wall ---
-    const wallCanvas = document.createElement('canvas');
-    wallCanvas.width = 512; wallCanvas.height = 512;
-    const wallCtx = wallCanvas.getContext('2d');
+        const randomAngle = Math.random() * Math.PI * 2;
+        if (scene.backgroundRotation) scene.backgroundRotation.y = randomAngle;
+        if (scene.environmentRotation) scene.environmentRotation.y = randomAngle;
+      }
 
-    // Warm terracotta / plaster gradient
-    const wallGrad = wallCtx.createLinearGradient(0, 0, 0, 512);
-    wallGrad.addColorStop(0, '#3D2820');
-    wallGrad.addColorStop(0.3, '#4A322A');
-    wallGrad.addColorStop(0.7, '#3A2518');
-    wallGrad.addColorStop(1, '#2A1A12');
-    wallCtx.fillStyle = wallGrad;
-    wallCtx.fillRect(0, 0, 512, 512);
+      // Countertop / table surface (Dark charcoal smoked timber for high contrast with warm wooden peel)
+      const tableTex = this.generateTableTexture();
+      tableTex.wrapS = THREE.RepeatWrapping;
+      tableTex.wrapT = THREE.RepeatWrapping;
+      tableTex.repeat.set(4, 4);
+      const tableMat = new THREE.MeshStandardMaterial({
+        map: tableTex,
+        roughness: 0.50,
+        metalness: 0.10
+      });
 
-    // Subtle plaster texture noise
-    const wallImgData = wallCtx.getImageData(0, 0, 512, 512);
-    const wallData = wallImgData.data;
-    for (let i = 0; i < wallData.length; i += 4) {
-      const noise = (Math.random() - 0.5) * 12;
-      wallData[i] = Math.min(255, Math.max(0, wallData[i] + noise));
-      wallData[i + 1] = Math.min(255, Math.max(0, wallData[i + 1] + noise));
-      wallData[i + 2] = Math.min(255, Math.max(0, wallData[i + 2] + noise));
+      const table = new THREE.Mesh(new THREE.BoxGeometry(10, 0.08, 10), tableMat);
+      table.position.set(0, -0.09, 0);
+      table.receiveShadow = true;
+      envGroup.add(table);
     }
-    wallCtx.putImageData(wallImgData, 0, 0);
-
-    const wallTex = new THREE.CanvasTexture(wallCanvas);
-    const wallMat = new THREE.MeshStandardMaterial({
-      map: wallTex,
-      roughness: 0.92,
-      metalness: 0.0
-    });
-
-    const backWall = new THREE.Mesh(new THREE.PlaneGeometry(12, 5), wallMat);
-    backWall.position.set(0, 2.4, -6);
-    backWall.receiveShadow = true;
-    envGroup.add(backWall);
-
-    // Side walls (angled slightly for depth)
-    const leftWall = new THREE.Mesh(new THREE.PlaneGeometry(12, 5), wallMat);
-    leftWall.position.set(-6, 2.4, 0);
-    leftWall.rotation.y = Math.PI / 2;
-    leftWall.receiveShadow = true;
-    envGroup.add(leftWall);
-
-    const rightWall = new THREE.Mesh(new THREE.PlaneGeometry(12, 5), wallMat);
-    rightWall.position.set(6, 2.4, 0);
-    rightWall.rotation.y = -Math.PI / 2;
-    rightWall.receiveShadow = true;
-    envGroup.add(rightWall);
-
-    // --- 3. Subtle warm ceiling ---
-    const ceilMat = new THREE.MeshStandardMaterial({
-      color: 0x2A1A12,
-      roughness: 0.95,
-      metalness: 0.0
-    });
-    const ceiling = new THREE.Mesh(new THREE.PlaneGeometry(12, 12), ceilMat);
-    ceiling.position.set(0, 4.9, 0);
-    ceiling.rotation.x = Math.PI / 2;
-    envGroup.add(ceiling);
-
-    // --- 4. Table edge trim detail ---
-    const trimMat = new THREE.MeshStandardMaterial({
-      color: 0x5C3A20,
-      roughness: 0.6,
-      metalness: 0.08
-    });
-    const frontTrim = new THREE.Mesh(new THREE.BoxGeometry(12, 0.12, 0.04), trimMat);
-    frontTrim.position.set(0, -0.09, 6);
-    envGroup.add(frontTrim);
-
-    // --- 5. Hanging warm lamp (simple geometric) ---
-    const lampShadeMat = new THREE.MeshStandardMaterial({
-      color: 0x8B5E2B,
-      roughness: 0.7,
-      metalness: 0.15,
-      side: THREE.DoubleSide
-    });
-    const shadeGeom = new THREE.ConeGeometry(0.45, 0.35, 16, 1, true);
-    const shade = new THREE.Mesh(shadeGeom, lampShadeMat);
-    shade.position.set(0, 3.2, 0);
-    shade.rotation.x = Math.PI; // inverted cone
-    envGroup.add(shade);
-
-    // Lamp cord
-    const cordMat = new THREE.MeshStandardMaterial({ color: 0x222222, roughness: 0.8 });
-    const cord = new THREE.Mesh(new THREE.CylinderGeometry(0.008, 0.008, 1.7, 6), cordMat);
-    cord.position.set(0, 4.05, 0);
-    envGroup.add(cord);
-
-    // Warm light bulb glow (small emissive sphere)
-    const bulbMat = new THREE.MeshStandardMaterial({
-      color: 0xFFE4B5,
-      emissive: 0xFFA033,
-      emissiveIntensity: 0.8,
-      roughness: 0.2
-    });
-    const bulb = new THREE.Mesh(new THREE.SphereGeometry(0.06, 12, 8), bulbMat);
-    bulb.position.set(0, 3.15, 0);
-    envGroup.add(bulb);
 
     this.rootGroup.add(envGroup);
   }

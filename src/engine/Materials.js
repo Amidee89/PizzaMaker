@@ -37,7 +37,7 @@ export class MaterialManager {
   // --- 1. Procedural Texture Generators ---
 
   /**
-   * Generates Top Dough Surface Texture with bake browning and leopard spotting
+   * Generates Top Dough Surface Texture with bake browning, leopard spotting, and coal charring
    */
   generateDoughTopTexture(params) {
     const baseColorHex = params.geo_dough_color || '#EED8A1';
@@ -60,6 +60,9 @@ export class MaterialManager {
     const imgData = ctx.createImageData(size, size);
     const data = imgData.data;
 
+    // Coal Factor: progress from well-done (0.80) to pure carbon coal (1.0)
+    const coalProgress = Math.max(0, (bake - 0.75) / 0.25); // 0.0 to 1.0
+
     for (let y = 0; y < size; y++) {
       for (let x = 0; x < size; x++) {
         const idx = (y * size + x) * 4;
@@ -73,21 +76,36 @@ export class MaterialManager {
         const crustFactor = Math.max(0, (distFromCenter - 0.65) / 0.35);
         const bakeMod = bake * (0.8 + crustFactor * 0.8);
 
-        let r = baseRgb.r - bakeMod * 40 + nBake + nFlour;
-        let g = baseRgb.g - bakeMod * 60 + nBake * 0.7 + nFlour;
-        let b = baseRgb.b - bakeMod * 95 + nBake * 0.4 + nFlour;
+        let r = baseRgb.r - bakeMod * 45 + nBake + nFlour;
+        let g = baseRgb.g - bakeMod * 65 + nBake * 0.7 + nFlour;
+        let b = baseRgb.b - bakeMod * 98 + nBake * 0.4 + nFlour;
 
         // Leopard Spotting (woodfired char)
         const charDensity = distFromCenter > 0.7 ? charCrust : charDough;
-        if (charDensity > 0.05) {
+        if (charDensity > 0.02) {
           const charNoise = this.noise.fbm2D(x * 0.045, y * 0.045, 3, 2.2, 0.6);
-          const threshold = 1.0 - charDensity * 0.52;
+          const threshold = 1.0 - charDensity * 0.55;
           if (charNoise > threshold) {
-            const spotIntensity = Math.min(1.0, (charNoise - threshold) / 0.12);
-            r = r * (1.0 - spotIntensity) + 28 * spotIntensity;
-            g = g * (1.0 - spotIntensity) + 18 * spotIntensity;
+            const spotIntensity = Math.min(1.0, (charNoise - threshold) / 0.10);
+            r = r * (1.0 - spotIntensity) + 24 * spotIntensity;
+            g = g * (1.0 - spotIntensity) + 16 * spotIntensity;
             b = b * (1.0 - spotIntensity) + 12 * spotIntensity;
           }
+        }
+
+        // --- Coal Transformation at Maximum Bake ---
+        if (coalProgress > 0) {
+          const crackNoise = this.noise.fbm2D(x * 0.08, y * 0.08, 4, 2.0, 0.6);
+          const ashNoise = this.noise.noise2D(x * 0.3, y * 0.3);
+
+          // Deep charcoal black base
+          const coalR = 16 + (crackNoise > 0.55 ? 12 : 0) + (ashNoise > 0.6 ? 25 : 0);
+          const coalG = 14 + (crackNoise > 0.55 ? 10 : 0) + (ashNoise > 0.6 ? 25 : 0);
+          const coalB = 14 + (crackNoise > 0.55 ? 8 : 0) + (ashNoise > 0.6 ? 28 : 0);
+
+          r = r * (1.0 - coalProgress) + coalR * coalProgress;
+          g = g * (1.0 - coalProgress) + coalG * coalProgress;
+          b = b * (1.0 - coalProgress) + coalB * coalProgress;
         }
 
         data[idx] = Math.min(255, Math.max(0, r));
@@ -113,8 +131,9 @@ export class MaterialManager {
   generateDoughBottomTexture(params) {
     const browning = params.bake_bottom_browning !== undefined ? params.bake_bottom_browning : 0.7;
     const charStone = params.bake_bottom_char !== undefined ? params.bake_bottom_char : 0.4;
+    const bake = params.bake_level !== undefined ? params.bake_level : 0.65;
 
-    const cacheKey = `doughBottom_${browning.toFixed(2)}_${charStone.toFixed(2)}`;
+    const cacheKey = `doughBottom_${browning.toFixed(2)}_${charStone.toFixed(2)}_${bake.toFixed(2)}`;
     if (this.textureCache.has(cacheKey)) {
       return this.textureCache.get(cacheKey);
     }
@@ -128,30 +147,46 @@ export class MaterialManager {
     const imgData = ctx.createImageData(size, size);
     const data = imgData.data;
 
+    const coalProgress = Math.max(0, (bake - 0.75) / 0.25);
+
     for (let y = 0; y < size; y++) {
       for (let x = 0; x < size; x++) {
         const idx = (y * size + x) * 4;
 
-        let r = 215 - browning * 75;
-        let g = 175 - browning * 85;
-        let b = 105 - browning * 85;
+        // Base under-bake gradient: 0.0 = pale raw white/cream flour, 1.0 = deep brown woodfired bake
+        let baseR = 242 - browning * 165; // 242 down to 77
+        let baseG = 226 - browning * 175; // 226 down to 51
+        let baseB = 195 - browning * 175; // 195 down to 20
 
-        const stoneNoise = this.noise.noise2D(x * 0.02, y * 0.02) * 15;
-        const fineGrain = this.noise.noise2D(x * 0.2, y * 0.2) * 10;
+        const stoneNoise = this.noise.noise2D(x * 0.02, y * 0.02) * 20;
+        const fineGrain = this.noise.noise2D(x * 0.25, y * 0.25) * 14;
+        const flourSpecks = this.noise.noise2D(x * 0.4, y * 0.4) > 0.65 ? (1.0 - browning * 0.7) * 35 : 0;
 
-        r += fineGrain + stoneNoise;
-        g += fineGrain + stoneNoise * 0.8;
-        b += fineGrain + stoneNoise * 0.5;
+        let r = baseR + fineGrain + stoneNoise + flourSpecks;
+        let g = baseG + fineGrain + stoneNoise * 0.8 + flourSpecks;
+        let b = baseB + fineGrain + stoneNoise * 0.5 + flourSpecks;
 
-        if (charStone > 0.05) {
-          const charNoise = this.noise.fbm2D(x * 0.035, y * 0.035, 3);
-          const threshold = 1.0 - charStone * 0.5;
+        // Oven stone contact scorch marks
+        if (charStone > 0.02) {
+          const charNoise = this.noise.fbm2D(x * 0.032, y * 0.032, 4, 2.3, 0.65);
+          const threshold = 1.05 - charStone * 0.65;
           if (charNoise > threshold) {
             const spot = Math.min(1.0, (charNoise - threshold) / 0.12);
-            r = r * (1.0 - spot) + 32 * spot;
-            g = g * (1.0 - spot) + 22 * spot;
-            b = b * (1.0 - spot) + 16 * spot;
+            // Deep black charred scorch contact spot
+            r = r * (1.0 - spot) + 18 * spot;
+            g = g * (1.0 - spot) + 14 * spot;
+            b = b * (1.0 - spot) + 10 * spot;
           }
+        }
+
+        // Coal state at max bake
+        if (coalProgress > 0) {
+          const coalR = 15 + this.noise.noise2D(x * 0.1, y * 0.1) * 6;
+          const coalG = 13;
+          const coalB = 13;
+          r = r * (1.0 - coalProgress) + coalR * coalProgress;
+          g = g * (1.0 - coalProgress) + coalG * coalProgress;
+          b = b * (1.0 - coalProgress) + coalB * coalProgress;
         }
 
         data[idx] = Math.min(255, Math.max(0, r));
@@ -202,6 +237,8 @@ export class MaterialManager {
     const imgData = ctx.createImageData(width, height);
     const data = imgData.data;
 
+    const coalProgress = Math.max(0, (bake - 0.75) / 0.25);
+
     // Pre-calculate hollow air cavity seeds across the crumb cross-section
     const airCavities = [];
     if (airBlisterCount > 0) {
@@ -210,7 +247,7 @@ export class MaterialManager {
         const uPos = 0.20 + (c / numCavities) * 0.58;
         const vPos = 0.35 + ((c % 3) * 0.15);
         const radiusU = (airBlisterSize / 45.0) * 0.08 + 0.03;
-        const radiusV = radiusU * 1.5; // taller vertically
+        const radiusV = radiusU * 1.5;
         airCavities.push({ u: uPos, v: vPos, rx: radiusU, ry: radiusV });
       }
     }
@@ -241,14 +278,13 @@ export class MaterialManager {
           b += microPores;
         }
 
-        // Air Blister Cavities (Large hollow pockets in cutaway)
+        // Air Blister Cavities
         for (const cav of airCavities) {
           const du = (u - cav.u) / cav.rx;
           const dv = (v - cav.v) / cav.ry;
           const distSq = du * du + dv * dv;
           if (distSq < 1.0) {
             const cavityDepth = 1.0 - Math.sqrt(distSq);
-            // Internal cavity shadow + toasted perimeter ring
             r = r * (1.0 - cavityDepth * 0.85) + 35 * cavityDepth;
             g = g * (1.0 - cavityDepth * 0.85) + 25 * cavityDepth;
             b = b * (1.0 - cavityDepth * 0.85) + 18 * cavityDepth;
@@ -271,7 +307,7 @@ export class MaterialManager {
           b = b * (1 - floorBlend) + 35 * floorBlend;
         }
 
-        // Stuffed Crust Core Cross-Section (scales with crust_stuff_amount)
+        // Stuffed Crust Core Cross-Section
         if (isStuffed) {
           const coreCenterX = 0.85;
           const coreCenterY = 0.50;
@@ -290,6 +326,14 @@ export class MaterialManager {
             g = g * (1 - coreBlend) + (cheeseRgb.g + fillingTexture) * coreBlend;
             b = b * (1 - coreBlend) + (cheeseRgb.b + fillingTexture) * coreBlend;
           }
+        }
+
+        // Coal state at max bake
+        if (coalProgress > 0) {
+          const coalCrumb = 18 + this.noise.noise2D(x * 0.08, y * 0.08) * 8;
+          r = r * (1.0 - coalProgress) + coalCrumb * coalProgress;
+          g = g * (1.0 - coalProgress) + coalCrumb * coalProgress;
+          b = b * (1.0 - coalProgress) + coalCrumb * coalProgress;
         }
 
         data[idx] = Math.min(255, Math.max(0, r));
@@ -321,8 +365,9 @@ export class MaterialManager {
 
     const swirlAmp = params.sauce_spread_patch !== undefined ? params.sauce_spread_patch : 0.45;
     const doughColorHex = params.geo_dough_color || '#EED8A1';
+    const bake = params.bake_level !== undefined ? params.bake_level : 0.65;
 
-    const cacheKey = `sauceDiff_${sauceColorHex}_${doughColorHex}_${swirlAmp.toFixed(2)}`;
+    const cacheKey = `sauceDiff_${sauceColorHex}_${doughColorHex}_${swirlAmp.toFixed(2)}_${bake.toFixed(2)}`;
     if (this.textureCache.has(cacheKey)) {
       return this.textureCache.get(cacheKey);
     }
@@ -338,6 +383,8 @@ export class MaterialManager {
     const imgData = ctx.createImageData(size, size);
     const data = imgData.data;
 
+    const coalProgress = Math.max(0, (bake - 0.75) / 0.25);
+
     for (let y = 0; y < size; y++) {
       for (let x = 0; x < size; x++) {
         const idx = (y * size + x) * 4;
@@ -346,7 +393,6 @@ export class MaterialManager {
         const dist = Math.sqrt(nx * nx + ny * ny) * 2.0;
         const angle = Math.atan2(ny, nx);
 
-        // Ladle spiral groove pattern
         const spiral = Math.sin(dist * 20.0 - angle * 3.0) * swirlAmp * 0.4;
         const patchNoise = this.noise.fbm2D(x * 0.015, y * 0.015, 3);
         const seeds = this.noise.noise2D(x * 0.3, y * 0.3) > 0.65 ? 25 : 0;
@@ -361,6 +407,16 @@ export class MaterialManager {
           r = r * (1 - patchBlend) + doughRgb.r * patchBlend;
           g = g * (1 - patchBlend) + doughRgb.g * patchBlend;
           b = b * (1 - patchBlend) + doughRgb.b * patchBlend;
+        }
+
+        // Coal state at max bake
+        if (coalProgress > 0) {
+          const coalR = 14 + this.noise.noise2D(x * 0.1, y * 0.1) * 6;
+          const coalG = 12;
+          const coalB = 12;
+          r = r * (1.0 - coalProgress) + coalR * coalProgress;
+          g = g * (1.0 - coalProgress) + coalG * coalProgress;
+          b = b * (1.0 - coalProgress) + coalB * coalProgress;
         }
 
         data[idx] = Math.min(255, Math.max(0, r));
@@ -444,9 +500,12 @@ export class MaterialManager {
     const sauceDiffuseTex = this.generateSauceDiffuseTexture(params);
     const sauceNormalTex = this.generateSauceNormalMap(params);
 
+    const bake = params.bake_level !== undefined ? params.bake_level : 0.65;
+    const coalProgress = Math.max(0, (bake - 0.75) / 0.25);
+
     const doughTopMaterial = new THREE.MeshStandardMaterial({
       map: doughTopTex,
-      roughness: params.geo_dough_roughness !== undefined ? params.geo_dough_roughness : 0.85,
+      roughness: coalProgress > 0.8 ? 0.96 : (params.geo_dough_roughness !== undefined ? params.geo_dough_roughness : 0.85),
       metalness: 0.02,
       side: THREE.DoubleSide
     });
@@ -469,14 +528,19 @@ export class MaterialManager {
       map: sauceDiffuseTex,
       normalMap: sauceNormalTex,
       normalScale: new THREE.Vector2(1.2, 1.2),
-      roughness: Math.max(0.1, 1.0 - (params.sauce_shininess !== undefined ? params.sauce_shininess : 0.80)),
-      metalness: 0.05,
+      roughness: coalProgress > 0.8 ? 0.95 : Math.max(0.1, 1.0 - (params.sauce_shininess !== undefined ? params.sauce_shininess : 0.80)),
+      metalness: coalProgress > 0.8 ? 0.0 : 0.05,
       side: THREE.DoubleSide
     });
 
     const stuffColor = this.getStuffingColor(params);
+    const stuffColorObj = new THREE.Color(stuffColor);
+    if (coalProgress > 0.5) {
+      stuffColorObj.lerp(new THREE.Color(0x181818), (coalProgress - 0.5) * 2.0);
+    }
+
     const stuffMaterial = new THREE.MeshStandardMaterial({
-      color: new THREE.Color(stuffColor),
+      color: stuffColorObj,
       roughness: params.crust_stuff_type === 'Garlic Butter' ? 0.15 : 0.40,
       metalness: 0.05,
       side: THREE.DoubleSide

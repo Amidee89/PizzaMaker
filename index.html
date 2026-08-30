@@ -44,7 +44,7 @@
     </div>
 
     <!-- Presets Quick Bar -->
-    <div class="preset-scroll-container">
+    <div id="presetScrollContainer" class="preset-scroll-container">
       <div id="presetBar" class="preset-bar">
         <!-- Injected via JavaScript -->
       </div>
@@ -52,7 +52,7 @@
 
     <!-- Header Action Buttons -->
     <div class="header-actions">
-      <button id="btnRandomize" class="action-btn btn-random" title="Randomize Pizza">
+      <button id="btnRandomize" class="action-btn btn-random" title="Randomize Pizza with wild parameters">
         <span>🎲</span> Randomize
       </button>
       <button id="btnSnapshot" class="action-btn btn-snapshot" title="Take HD Screenshot">
@@ -61,9 +61,13 @@
       <button id="btnExport3D" class="action-btn btn-export" title="Export 3D Model (GLTF)">
         <span>💾</span> Export 3D
       </button>
+      <button id="btnImportRecipe" class="action-btn btn-import" title="Import Recipe JSON file">
+        <span>📥</span> Import
+      </button>
       <button id="btnCopyRecipe" class="action-btn btn-recipe" title="Copy Pizza Recipe JSON">
         <span>📋</span> Recipe
       </button>
+      <input type="file" id="recipeFileInput" accept=".json,application/json" style="display: none;" />
     </div>
   </header>
 

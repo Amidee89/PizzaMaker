@@ -481,6 +481,24 @@ export const PARAM_DEFINITIONS = {
   },
 
   // --- Category: Plates, Boxes & Props ---
+  prop_environment: {
+    category: 'props',
+    label: 'Environment & Skybox',
+    type: 'dropdown',
+    options: [
+      'Bright Modern Room',
+      'House Terrace',
+      'Cozy Living Room',
+      'Golden Sunset Sky',
+      'Sunset Cloudscape',
+      'Blue Sky & Mountains',
+      'Aerial Drone Panorama',
+      'Commercial Kitchen',
+      'Minimal Dark Void'
+    ],
+    default: 'Bright Modern Room',
+    description: '360° panoramic skybox environment'
+  },
   prop_container: {
     category: 'props',
     label: 'Plate / Serving Surface',
